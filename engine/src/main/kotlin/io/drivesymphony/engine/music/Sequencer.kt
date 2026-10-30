@@ -10,7 +10,8 @@ import kotlin.math.abs
 /** What the sequencer asks the engine to play at a given 16th-note step. */
 enum class HitKind { KICK, SNARE, HAT_C, HAT_O, RIDE, SHAKER, RIM, EP, BASS, LEAD, PAD_CHORD, PULSE }
 
-class StepEvent(val step: Int, val kind: HitKind, val note: Int = 0, val vel: Float = 0.8f, val lenSteps: Float = 1f)
+/** [offsetSteps] delays the hit by a fraction of a 16th (0..0.5): lazy comping, pushed hats - the 'human' feel. */
+class StepEvent(val step: Int, val kind: HitKind, val note: Int = 0, val vel: Float = 0.8f, val lenSteps: Float = 1f, val offsetSteps: Float = 0f)
 
 /** Per-bar form context handed to the arranger (mutable and reused: no allocation per bar). */
 class BarContext {
@@ -130,9 +131,13 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
         }
     }
 
-    private fun add(step: Int, kind: HitKind, note: Int = 0, vel: Float = 0.8f, len: Float = 1f) {
-        events.add(StepEvent(step, kind, note, vel.coerceIn(0.05f, 1f), len))
+    private fun add(step: Int, kind: HitKind, note: Int = 0, vel: Float = 0.8f, len: Float = 1f, offset: Float = 0f) {
+        events.add(StepEvent(step, kind, note, vel.coerceIn(0.05f, 1f), len, offset.coerceIn(0f, 0.5f)))
     }
+
+    /** Lo-fi feel: comping lands a little behind the beat, off-beat hats push slightly. Deterministic by seed. */
+    private fun lazy(): Float = 0.06f + rng.nextFloat() * 0.08f
+    private fun pushHat(k: Int): Float = if (k % 4 == 2) 0.03f + rng.nextFloat() * 0.04f else 0f
 
     private fun bassRoot(chord: Chord): Int = 36 + chord.rootPc
     private fun fifth(chord: Chord): Int = bassRoot(chord) + 7
@@ -157,7 +162,7 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
         if (d >= 1.8f) {
             for (k in 0 until 16 step 2) {
                 val v = if (k % 4 == 0) 0.6f else 0.42f
-                add(k, HitKind.HAT_C, vel = v * hum)
+                add(k, HitKind.HAT_C, vel = v * hum, offset = pushHat(k))
             }
             if (d >= 2.5f) {
                 if (rng.chance(0.6f)) add(14, HitKind.HAT_O, vel = 0.4f)
@@ -179,10 +184,11 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
         if (d < 0.9f) {
             for (n in notes) add(0, HitKind.EP, n, 0.55f, 15f)
         } else {
-            for (n in notes) add(0, HitKind.EP, n, 0.7f, 6f)
+            val lag = lazy()
+            for (n in notes) add(0, HitKind.EP, n, 0.7f, 6f, offset = lag)
             val second = if (rng.chance(0.5f)) 6 else 7
-            if (rng.chance(0.75f)) for (n in notes) add(second, HitKind.EP, n, 0.5f, 4f)
-            if (d >= 1.8f && rng.chance(0.5f)) for (n in notes) add(11, HitKind.EP, n, 0.45f, 3f)
+            if (rng.chance(0.75f)) { val lag2 = lazy(); for (n in notes) add(second, HitKind.EP, n, 0.5f, 4f, offset = lag2) }
+            if (d >= 1.8f && rng.chance(0.5f)) { val lag3 = lazy(); for (n in notes) add(11, HitKind.EP, n, 0.45f, 3f, offset = lag3) }
             if (d >= 2.6f && rng.chance(0.4f)) add(13, HitKind.EP, notes.last() + 12, 0.35f, 2f)
         }
 
@@ -234,7 +240,8 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
         val stabCount = if (d < 1.2f) 1 else stabs.size
         for (i in 0 until stabCount) {
             val st = stabs[i]
-            for (n in notes) add(st, HitKind.EP, n, 0.5f + rng.nextFloat() * 0.2f, 2.5f)
+            val lag = lazy() * 0.6f
+            for (n in notes) add(st, HitKind.EP, n, 0.5f + rng.nextFloat() * 0.2f, 2.5f, offset = lag)
         }
         // soft pad only at low density (keeps the trio clean when the groove is full)
         if (d < 1.4f) for (n in Voicing.pad(chord, p.richness * 0.5f)) add(0, HitKind.PAD_CHORD, n, 0.3f, 16f)

@@ -143,6 +143,13 @@ class SymphonyEngine(
 
     // current bar events
     private var barEvents: List<StepEvent> = emptyList()
+    // hits delayed by a sub-step offset (humanisation); fired sample-accurately inside render()
+    private val pendKind = arrayOfNulls<HitKind>(PENDING_MAX)
+    private val pendNote = IntArray(PENDING_MAX)
+    private val pendVel = FloatArray(PENDING_MAX)
+    private val pendLen = LongArray(PENDING_MAX)
+    private val pendWait = IntArray(PENDING_MAX)
+    private var pendCount = 0
     private var currentChord: Chord = progression[0]
     private var nextChord: Chord = progression[1 % progression.size]
     private val layersActive = ArrayList<String>(8)
@@ -222,6 +229,7 @@ class SymphonyEngine(
         drums.brushed = g == Genre.JAZZ
         pad.cutoffBase = when (g) { Genre.AMBIENT -> 420f; Genre.LOFI -> 520f; Genre.JAZZ -> 700f }
         ep.allOff(); lead.allOff(); pad.allOff()
+        pendCount = 0
         title = TripTitles.make(roadName, lastSignals.hourOfDay, keyRoot, g)
     }
 
@@ -270,20 +278,13 @@ class SymphonyEngine(
         for (e in barEvents) {
             if (e.step != step) continue
             val len = clock.samplesForSteps(e.lenSteps)
-            when (e.kind) {
-                HitKind.KICK -> if (gDrums > 0.02f) drums.kick(e.vel)
-                HitKind.SNARE -> if (gDrums > 0.02f) drums.snare(e.vel)
-                HitKind.HAT_C -> if (gHats > 0.02f) drums.hat(e.vel, false)
-                HitKind.HAT_O -> if (gHats > 0.02f) drums.hat(e.vel, true)
-                HitKind.RIDE -> if (gDrums > 0.02f) drums.ride(e.vel)
-                HitKind.SHAKER -> drums.shaker(e.vel)
-                HitKind.RIM -> if (gHats > 0.02f) drums.rim(e.vel)
-                HitKind.EP -> ep.noteOn(e.note, e.vel, len)
-                HitKind.BASS -> bass.noteOn(e.note, e.vel, len)
-                HitKind.LEAD -> if (p.bloom > 0.3f) lead.noteOn(e.note, e.vel * p.bloom, len)
-                HitKind.PAD_CHORD -> { /* handled as a group below */ }
-                HitKind.PULSE -> texture.pulse()
+            if (e.offsetSteps > 0f && e.kind != HitKind.PAD_CHORD && pendCount < PENDING_MAX) {
+                val i = pendCount++
+                pendKind[i] = e.kind; pendNote[i] = e.note; pendVel[i] = e.vel; pendLen[i] = len
+                pendWait[i] = (clock.stepSamples * e.offsetSteps).toInt().coerceAtLeast(1)
+                continue
             }
+            fire(e.kind, e.note, e.vel, len, p)
         }
         // pad chords: gather all PAD_CHORD notes on this step and send as one chord
         var count = 0
@@ -297,6 +298,40 @@ class SymphonyEngine(
         }
         // blinker: a soft rim tick on the beat while the turn signal is on (musical, low level)
         if (p.blinker && step % 4 == 0 && genre != Genre.AMBIENT) drums.rim(0.25f)
+    }
+
+    /** Called once per sample while delayed hits are pending; fires those whose wait reached zero. */
+    private fun tickPending(p: MusicParams) {
+        var i = 0
+        while (i < pendCount) {
+            if (--pendWait[i] <= 0) {
+                fire(pendKind[i]!!, pendNote[i], pendVel[i], pendLen[i], p)
+                pendCount--
+                if (i != pendCount) { // swap-remove
+                    pendKind[i] = pendKind[pendCount]; pendNote[i] = pendNote[pendCount]; pendVel[i] = pendVel[pendCount]; pendLen[i] = pendLen[pendCount]; pendWait[i] = pendWait[pendCount]
+                }
+            } else i++
+        }
+    }
+
+    private fun fire(kind: HitKind, note: Int, vel: Float, len: Long, p: MusicParams) {
+        run {
+            val e = kind
+            when (e) {
+                HitKind.KICK -> if (gDrums > 0.02f) drums.kick(vel)
+                HitKind.SNARE -> if (gDrums > 0.02f) drums.snare(vel)
+                HitKind.HAT_C -> if (gHats > 0.02f) drums.hat(vel, false)
+                HitKind.HAT_O -> if (gHats > 0.02f) drums.hat(vel, true)
+                HitKind.RIDE -> if (gDrums > 0.02f) drums.ride(vel)
+                HitKind.SHAKER -> drums.shaker(vel)
+                HitKind.RIM -> if (gHats > 0.02f) drums.rim(vel)
+                HitKind.EP -> ep.noteOn(note, vel, len)
+                HitKind.BASS -> bass.noteOn(note, vel, len)
+                HitKind.LEAD -> if (p.bloom > 0.3f) lead.noteOn(note, vel * p.bloom, len)
+                HitKind.PAD_CHORD -> { /* pad chords are grouped in onStep */ }
+                HitKind.PULSE -> texture.pulse()
+            }
+        }
     }
 
     /** Audio thread. Writes interleaved stereo into [out] for [frames] frames. */
@@ -326,6 +361,7 @@ class SymphonyEngine(
         var blockPeak = 0f
         var o = 0
         for (i in 0 until frames) {
+            if (pendCount > 0) tickPending(p)
             mix.l = 0f; mix.r = 0f
             ep.render(mix, gEp * 0.55f)
             leadMix.l = 0f; leadMix.r = 0f
@@ -432,6 +468,7 @@ class SymphonyEngine(
     companion object {
         private const val PUBLISH_INTERVAL = 1024
         private const val SECTION_BARS = 8
+        private const val PENDING_MAX = 48
     }
 }
 
