@@ -20,6 +20,8 @@ class SignalStore {
     @Volatile var turnSignal = TurnSignal.OFF
     @Volatile var wiper = WiperState.OFF
     @Volatile var gear = Gear.UNKNOWN
+    /** android.car GEAR_SELECTION has delivered at least once; the deprecated Pleos listener then no longer overwrites with UNKNOWN. */
+    @Volatile var propertyGearLive = false
     @Volatile var driveMode = DriveMode.NORMAL
     @Volatile var cruise = CruiseState.OFF
     @Volatile var speedKmh: Float? = null

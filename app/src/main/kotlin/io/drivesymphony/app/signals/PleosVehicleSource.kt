@@ -78,7 +78,10 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
     }
     private val gear = object : GearSelectionListener {
         override fun onSelected(gear: VehicleGear?) {
-            store?.gear = when (gear) {
+            val s = store ?: return
+            // the android.car property (the path Vehicle 2.3.2 recommends) wins once it has delivered: an unknown from this deprecated listener must not overwrite it
+            if (s.propertyGearLive && (gear == null || gear == VehicleGear.GEAR_UNKNOWN)) return
+            s.gear = when (gear) {
                 VehicleGear.GEAR_PARK -> Gear.PARK
                 VehicleGear.GEAR_REVERSE -> Gear.REVERSE
                 VehicleGear.GEAR_NEUTRAL -> Gear.NEUTRAL

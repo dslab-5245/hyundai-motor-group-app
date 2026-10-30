@@ -168,7 +168,6 @@ class SymphonyEngine(
     private var pendCount = 0
     private var currentChord: Chord = progression[0]
     private var nextChord: Chord = progression[1 % progression.size]
-    private val layersActive = ArrayList<String>(8)
     private val drone = Drone(sr)
     private var gDrone = 0f
     private var rainSamples = 0L
@@ -463,7 +462,7 @@ class SymphonyEngine(
     private var samplesSincePublish = PUBLISH_INTERVAL   // first render publishes immediately
 
     private fun publishState(p: MusicParams, score: ScoreState) {
-        layersActive.clear()
+        val layersActive = ArrayList<String>(8)   // local: publishState runs on the audio thread, or on the control thread while idle
         layersActive.add("pad")
         if (gBass > 0.05f) layersActive.add("bass")
         if (gEp > 0.05f) layersActive.add("keys")
@@ -492,7 +491,7 @@ class SymphonyEngine(
             light = smoothLight.value > 0.5f,
             density = densityEff,
             bloom = p.bloom,
-            layers = ArrayList(layersActive),
+            layers = layersActive,
             title = title,
             elapsedSec = elapsedSamples / sr,
             peak = peak,

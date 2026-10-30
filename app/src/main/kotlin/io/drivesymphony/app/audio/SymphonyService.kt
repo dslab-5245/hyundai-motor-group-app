@@ -20,8 +20,10 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.media.MediaBrowserServiceCompat
+import androidx.media.session.MediaButtonReceiver
 import io.drivesymphony.app.MainActivity
 import io.drivesymphony.app.R
 import io.drivesymphony.app.Settings
@@ -177,10 +179,12 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 val now = System.nanoTime()
                 val dt = ((now - last) / 1e9).toFloat().coerceIn(0.005f, 0.2f)
                 last = now
-                val tSec = (now - t0) / 1e9
-                val snap = store.snapshot(tSec)
-                engine.update(snap, dt)
-                if (!_ui.value.playing) engine.publishIdleState()   // render() is idle: publish for the UI and Gleo
+                // one bad tick (disk IO in history.add, a source race) must not end scoring for the service lifetime
+                try {
+                    val tSec = (now - t0) / 1e9
+                    val snap = store.snapshot(tSec)
+                    engine.update(snap, dt)
+                    if (!output.isRunning) engine.publishIdleState()   // audio thread idle: publish for the UI and Gleo
                 // rear-seat passengers: the feedback drops to '약' automatically and comes back when they leave
                 val rear = store.rearSeatOccupied
                 if (rear != rearOccupiedApplied) {
@@ -194,6 +198,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 val vLive = vehicleSource.isLive(store)
                 val nLive = naviSource.isLive(store)
                 _ui.update { if (it.vehicleLive != vLive || it.naviLive != nLive) it.copy(vehicleLive = vLive, naviLive = nLive) else it }
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (t: Throwable) { Log.w(TAG, "control loop tick", t) }
                 delay(40)
             }
         }
@@ -211,10 +216,10 @@ class SymphonyService : MediaBrowserServiceCompat() {
      */
     private fun guardLoad(dt: Float) {
         val load = output.load
-        val synth = _ui.value.playing && mode == PlayMode.GENERATIVE
+        val synth = _ui.value.playing && mode == PlayMode.GENERATIVE && output.isRunning
         val profile = engine.profile
         overBudgetSec = if (synth && profile == RenderProfile.FULL && load > LIGHT_ENTER_LOAD) overBudgetSec + dt else 0f
-        underBudgetSec = if (synth && profile == RenderProfile.LIGHT && load < LIGHT_EXIT_LOAD) underBudgetSec + dt else 0f
+        underBudgetSec = if (synth && profile == RenderProfile.LIGHT && load < LIGHT_EXIT_LOAD) underBudgetSec + dt else maxOf(0f, underBudgetSec - 5 * dt)   // tolerant exit: a jittery tick costs 5x, not a reset
         if (overBudgetSec >= LIGHT_ENTER_SEC) {
             overBudgetSec = 0f; engine.profile = RenderProfile.LIGHT
             Log.i(TAG, "engine load ${"%.1f".format(load * 100)}% over budget -> light profile")
@@ -230,14 +235,14 @@ class SymphonyService : MediaBrowserServiceCompat() {
         val moving = gear == Gear.DRIVE || (gear == Gear.UNKNOWN && (speed ?: 0f) > 5f)
         val now = System.currentTimeMillis()
         if (moving) {
-            if (!wasMoving && now - lastMovingAtMs > 5_000) {   // a new trip, not a brief N/R blip
+            if (!_ui.value.tripActive) {   // a new trip; an N/R blip keeps tripActive, so it cannot restart one
                 movingSinceMs = now
                 _ui.update { it.copy(tripActive = true) }
                 // opt-in: start playing when the car starts moving (off by default; never auto-plays on connection)
                 if (settings.autoStartOnDrive && !_ui.value.playing) play()
             }
             lastMovingAtMs = now
-        } else if (gear == Gear.PARK && _ui.value.tripActive && now - lastMovingAtMs < 10_000 && now - movingSinceMs > 45_000) {
+        } else if (gear == Gear.PARK && _ui.value.tripActive && now - movingSinceMs > 45_000) {   // reverse parking or a long wait in N before P still ends the trip
             val summary = engine.summary()
             if (summary.durationSec > 30f) history.add(summary)   // nothing was played: no song to remember
             _ui.update { it.copy(lastSummary = summary, tripActive = false, history = history.all()) }
@@ -279,6 +284,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
         session.isActive = false
         setPlaybackState(PlaybackStateCompat.STATE_STOPPED)
         stopForeground(STOP_FOREGROUND_REMOVE)
+        // pause() already detached the notification, so the REMOVE above is a no-op: cancel it explicitly
+        runCatching { NotificationManagerCompat.from(this).cancel(NOTIF_ID) }
     }
 
     fun setGenre(g: Genre) {
@@ -461,6 +468,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         // Gleo / adb / notification intents may be delivered with startForegroundService (API 31+: startForeground within 5 s)
         val external = intent?.action != null
         if (external && !_ui.value.playing) startForegroundSafely()
+        MediaButtonReceiver.handleIntent(session, intent)   // steering-wheel play/pause arrives here while the session is inactive
         when (intent?.action) {
             ACTION_PLAY -> play()
             ACTION_PAUSE -> pause()
@@ -525,6 +533,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
 
     override fun onDestroy() {
         pause()
+        runCatching { NotificationManagerCompat.from(this).cancel(NOTIF_ID) }
         controlJob?.cancel()
         scope.cancel()
         runCatching { vehicleSource.stop() }

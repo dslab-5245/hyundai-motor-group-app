@@ -43,6 +43,7 @@ class CarPropertyGearSource(private val context: Context) : SignalSource {
     /** android.car.VehicleGear values: UNKNOWN 0, NEUTRAL 1, REVERSE 2, PARK 4, DRIVE 8, manual ranges 16.. */
     private fun apply(v: Int) {
         val st = store ?: return
+        st.propertyGearLive = true
         st.gear = when (v) {
             0 -> Gear.UNKNOWN
             1 -> Gear.NEUTRAL

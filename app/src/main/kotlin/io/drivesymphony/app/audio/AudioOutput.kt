@@ -20,6 +20,8 @@ class AudioOutput(
     /** Render time / block time as a fraction of one core (~2 s EMA); the service's CPU-budget guard reads it. */
     @Volatile var load = 0f
         private set
+    /** The render thread is alive (also while it is still finishing a blocking write after stop()). */
+    val isRunning: Boolean get() = thread?.isAlive == true
     private var smoothGain = 1f   // audio-thread only; ~20 ms ramp toward duckGain so ducking never clicks
     private var thread: Thread? = null
     private var track: AudioTrack? = null
@@ -88,6 +90,7 @@ class AudioOutput(
             track?.let { t -> try { t.stop() } catch (_: Exception) {}; t.release() }
             track = null
             running = false   // a dead loop must not look 'running' to the next start()
+            load = 0f
         }
     }
 

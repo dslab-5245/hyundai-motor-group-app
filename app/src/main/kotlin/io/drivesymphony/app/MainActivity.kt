@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import io.drivesymphony.app.audio.SymphonyService
 import io.drivesymphony.app.ui.ComposerScreen
 import io.drivesymphony.app.ui.DriveSymphonyTheme
@@ -40,7 +41,10 @@ import io.drivesymphony.app.ui.DsColors
 import io.drivesymphony.app.ui.FlowScreen
 import io.drivesymphony.app.share.ShareCard
 import io.drivesymphony.engine.TripSummary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val serviceFlow = MutableStateFlow<SymphonyService?>(null)
@@ -99,12 +103,14 @@ class MainActivity : ComponentActivity() {
     private fun share(summary: TripSummary) {
         // image card first; plain text if the card cannot be written (e.g. no cache dir)
         // the 1080x1350 card is rendered off the main thread; the chooser opens when it is written
-        Thread {
-            val intent = runCatching { ShareCard.shareIntent(this, summary) }.getOrElse {
-                Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, ShareCard.caption(summary))
+        lifecycleScope.launch {   // dies with the activity, so no chooser is launched from a finished activity
+            val intent = withContext(Dispatchers.IO) {
+                runCatching { ShareCard.shareIntent(this@MainActivity, summary) }.getOrElse {
+                    Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, ShareCard.caption(summary))
+                }
             }
-            runOnUiThread { startActivity(Intent.createChooser(intent, "여정 공유")) }
-        }.start()
+            startActivity(Intent.createChooser(intent, "여정 공유"))
+        }
     }
 }
 
