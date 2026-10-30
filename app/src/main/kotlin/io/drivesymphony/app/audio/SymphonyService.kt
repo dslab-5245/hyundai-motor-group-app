@@ -114,6 +114,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     // trip bookkeeping
     private var movingSinceMs = 0L
     private var wasMoving = false
+    private var rearOccupiedApplied = false   // rear passengers -> feedback level forced to '약'
 
     override fun onCreate() {
         super.onCreate()
@@ -161,6 +162,12 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 val tSec = (now - t0) / 1e9
                 val snap = store.snapshot(tSec)
                 engine.update(snap, dt)
+                // rear-seat passengers: the feedback drops to '약' automatically and comes back when they leave
+                val rear = store.rearSeatOccupied
+                if (rear != rearOccupiedApplied) {
+                    rearOccupiedApplied = rear
+                    engine.setFeedbackLevel(if (rear) 0 else settings.feedbackLevel)
+                }
                 trackTrip(snap.gear, snap.speedKmh)
                 val st = engine.state
                 _engineState.value = st
@@ -241,7 +248,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
 
     fun setFeedbackLevel(level: Int) {
         settings.feedbackLevel = level
-        engine.setFeedbackLevel(level)
+        engine.setFeedbackLevel(if (rearOccupiedApplied) 0 else level)
         _ui.update { it.copy(feedbackLevel = level) }
     }
 

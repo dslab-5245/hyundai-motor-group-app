@@ -147,4 +147,22 @@ class DrivingScorerTest {
         assertTrue(s.state.overSpeedRatio > 0.3f, "sustained over-speed must count (ratio ${s.state.overSpeedRatio})")
         assertTrue(s.state.flow < before - 0.15f, "sustained over-speed must lower flow ($before -> ${s.state.flow})")
     }
+
+    @Test
+    fun demoStoryShowsHabitThenEvasiveGrace() {
+        // the PT story must do what the cue sheet says: the harsh section sinks the music, the 86 s swerve only breathes
+        val s = DrivingScorer()
+        var minHarsh = 1f; var minEvasive = 1f; var graced = false
+        var t = 0.0
+        while (t < 92.0) {
+            val st = s.update(Scenarios.story.signalsAt(t), dt)
+            if (t in 20.0..30.0) minHarsh = minOf(minHarsh, st.flow)
+            if (t in 86.0..92.0) { minEvasive = minOf(minEvasive, st.flow); graced = graced || st.graced }
+            t += dt
+        }
+        println("demo story: habitual section min flow ${"%.2f".format(minHarsh)}, evasive swerve min flow ${"%.2f".format(minEvasive)}")
+        assertTrue(minHarsh < 0.55f, "the habitual harsh section must sink the music (min flow $minHarsh)")
+        assertTrue(graced, "the 86 s swerve must be read as an emergency manoeuvre")
+        assertTrue(minEvasive > 0.65f, "the evasive swerve should only be a short breath (min flow $minEvasive)")
+    }
 }

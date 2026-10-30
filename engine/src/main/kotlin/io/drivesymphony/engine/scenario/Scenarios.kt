@@ -56,30 +56,35 @@ object Scenarios {
         )
     }
 
-    /** Demo story for the PT: calm start -> harsh section -> recovery -> highway bloom -> rain -> arrival (PARK). */
-    val story = DriveScenario("story", "시연 스토리", 90f) { t ->
+    /**
+     * Demo story for the PT (106 s): calm start -> harsh section (habit) -> recovery -> highway bloom with ONE
+     * emergency swerve at 86 s (read as evasive after a 30 s clean streak: half penalty, short breath) -> rain
+     * -> arrival (PARK, journey card).
+     */
+    val story = DriveScenario("story", "시연 스토리", 106f) { t ->
         val phase = when {
             t < 20.0 -> 0   // calm city
-            t < 32.0 -> 1   // harsh
-            t < 50.0 -> 2   // recovery
-            t < 70.0 -> 3   // highway cruise, bloom
-            t < 82.0 -> 4   // rain
+            t < 28.0 -> 1   // harsh (habitual: sawtooth steering + brake pumping)
+            t < 44.0 -> 2   // recovery
+            t < 90.0 -> 3   // highway cruise, bloom; evasive swerve at 86.0-87.2 s
+            t < 98.0 -> 4   // rain
             else -> 5       // arrival
         }
+        val evasive = t in 86.0..87.2
         val steer = when (phase) {
             1 -> (sin(t * 8.0) * 80.0).toFloat()
-            3 -> (sin(t * 0.3) * 4.0).toFloat()
+            3 -> (sin(t * 0.3) * 4.0).toFloat() + if (evasive) (sin((t - 86.0) * 9.0) * 85.0).toFloat() else 0f
             else -> (sin(t * 0.6) * 12.0).toFloat()
         } + if (t in 8.0..12.0) (sin((t - 8.0) / 4.0 * PI) * 150.0).toFloat() else 0f
         base(t, hour = 19, road = "강변북로").copy(
             steeringAngleDeg = steer,
-            brake = (phase == 1 && (t * 3).toInt() % 2 == 0) || (t in 83.0..86.0),
+            brake = (phase == 1 && (t * 3).toInt() % 2 == 0) || (t in 86.6..86.8) || (t in 99.0..102.0),
             turnSignal = if (t in 6.0..12.5) TurnSignal.RIGHT else TurnSignal.OFF,
             wiper = if (phase == 4) WiperState.ON else WiperState.OFF,
             cruise = if (phase == 3) CruiseState.ACTIVATED else CruiseState.OFF,
             speedKmh = when (phase) { 3 -> 95f; 5 -> 0f; 1 -> 58f; else -> 45f },
             speedLimitKmh = when (phase) { 3 -> 100; else -> 50 },
-            gear = if (t > 87.0) Gear.PARK else Gear.DRIVE,
+            gear = if (t > 103.0) Gear.PARK else Gear.DRIVE,
             driveMode = if (phase == 3) DriveMode.NORMAL else DriveMode.ECO,
         )
     }
