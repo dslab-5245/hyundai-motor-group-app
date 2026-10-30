@@ -33,6 +33,8 @@ data class ScoreState(
     val lastEvent: DriveEvent? = null,
     val lastEventAgeSec: Float = 999f,
     val overSpeedRatio: Float = 0f,
+    /** true when the last penalty was softened by the grace rule (read as an emergency manoeuvre). */
+    val graced: Boolean = false,
 )
 
 /**
@@ -63,6 +65,10 @@ class DrivingScorer(
     private var inTurn = false
     private var turnHold = 0f
 
+    private var graceUntil = -1000.0 // while now < graceUntil, further penalties belong to the same evasive manoeuvre
+    private var lastGraced = false
+    private var overSustain = 0f     // seconds the (noisy, position-derived) speed has been over the limit
+
     private var penalty = 0f       // decaying accumulated penalty (0..0.9)
     private var pulse = 0f
     private var flow = 0.6f
@@ -82,19 +88,30 @@ class DrivingScorer(
         signalLastOnAt = -100.0; inTurn = false; turnHold = 0f
         penalty = 0f; pulse = 0f; flow = 0.6f; instant = 0.6f; streak = 0f
         lastEvent = null; lastEventAt = -1000.0; lastPenaltyAt = -1000.0
+        graceUntil = -1000.0; lastGraced = false; overSustain = 0f
         state = ScoreState()
     }
 
     private fun fire(ev: DriveEvent, amount: Float, now: Double) {
         var a = amount
         if (ev.isPenalty) {
-            // Grace rule: a single event after a long clean streak is probably an emergency manoeuvre.
+            // Grace rule: the first event after a long clean streak is probably an emergency manoeuvre, and so is
+            // everything that follows within EVASIVE_WINDOW_SEC (a swerve plus a brake stab are ONE manoeuvre).
+            // A graced manoeuvre costs half and only a half-strength pulse: a short breath, not a punishment.
             val sinceLastPenalty = now - lastPenaltyAt
-            if (streak >= 30f && sinceLastPenalty > 10.0) a *= 0.5f
+            var graced = false
+            if (now < graceUntil) {
+                graced = true
+            } else if (streak >= GRACE_STREAK_SEC && sinceLastPenalty > 10.0) {
+                graced = true
+                graceUntil = now + EVASIVE_WINDOW_SEC
+            }
+            if (graced) a *= 0.5f
             penalty = min(0.9f, penalty + a)
-            pulse = 1f
+            pulse = if (graced) maxOf(pulse, 0.5f) else 1f
             streak = 0f
             lastPenaltyAt = now
+            lastGraced = graced
         }
         lastEvent = ev
         lastEventAt = now
@@ -174,7 +191,10 @@ class DrivingScorer(
             overRatio = clamp01((ratio - 1.08f) / 0.25f)
             if (schoolZone && ratio > 1.0f) overRatio = min(1f, overRatio + 0.4f)
         }
-        // the navigation app's own camera-zone judgement counts even when we cannot derive speed
+        // The derived speed is noisy, so over-speed has to be sustained for OVER_SPEED_SUSTAIN_SEC before it counts;
+        // the navigation app's own camera-zone judgement counts immediately, even when we cannot derive speed.
+        if (overRatio > 0.05f) overSustain += dtc else overSustain = 0f
+        if (overSustain < OVER_SPEED_SUSTAIN_SEC) overRatio = 0f
         if (moving && s.cameraOverSpeed) overRatio = maxOf(overRatio, 0.5f)
         if (overRatio > 0.05f && now - lastEventAt > 3.0) {
             fire(if (schoolZone) DriveEvent.SCHOOL_ZONE_SPEED else DriveEvent.OVER_SPEED, 0f, now)
@@ -220,7 +240,17 @@ class DrivingScorer(
             lastEvent = lastEvent,
             lastEventAgeSec = (now - lastEventAt).toFloat(),
             overSpeedRatio = overRatio,
+            graced = lastGraced,
         )
         return state
+    }
+
+    companion object {
+        /** Clean-driving seconds after which the next event is read as an emergency manoeuvre. */
+        const val GRACE_STREAK_SEC = 30f
+        /** Seconds after a graced event during which further events still belong to the same manoeuvre. */
+        const val EVASIVE_WINDOW_SEC = 2.5
+        /** Seconds the derived speed must stay over the limit before it is scored. */
+        const val OVER_SPEED_SUSTAIN_SEC = 2f
     }
 }

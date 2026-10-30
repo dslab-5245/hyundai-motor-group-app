@@ -84,6 +84,22 @@ object Scenarios {
         )
     }
 
+    /**
+     * A/B pair behind the "reacts within a fraction of a second" claim: identical smooth driving, except that
+     * [abEvent] adds a brake-stab + pumping burst at 20.0-21.5 s (first release at 20.3 s). Rendered with the same
+     * seed the two files are sample-identical until the event, so the reaction time can be measured on the audio.
+     */
+    private fun ab(id: String, label: String, event: Boolean) = DriveScenario(id, label, 30f) { t ->
+        val gentle = (sin(t * 0.6) * 10.0).toFloat()
+        val tap = event && t >= 20.0 && t < 21.5 && (((t - 20.0) * 1000).toInt() % 600 < 300)
+        base(t).copy(steeringAngleDeg = gentle, brake = tap, speedKmh = 46f, speedLimitKmh = 50)
+    }
+    val abClean = ab("ab_clean", "A/B 기준 (부드러운 주행)", false)
+    val abEvent = ab("ab_event", "A/B 이벤트 (20 s 브레이크 연타)", true)
+
+    /** Scenarios offered in the in-app demo mode. */
     val all = listOf(safe, erratic, story)
+    /** Rendered by PreviewMain as evidence files; not shown in the app. */
+    val abPair = listOf(abClean, abEvent)
     fun byId(id: String): DriveScenario = all.firstOrNull { it.id == id } ?: story
 }

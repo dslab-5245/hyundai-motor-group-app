@@ -66,6 +66,10 @@ object PreviewMain {
             val r = render(g, s, secs, outDir)
             println(String.format("%-28s peak=%.2f rms=%.3f meanFlow=%.2f meanCutoff=%5.0fHz meanDensity=%.2f", r.file.name, r.peak, r.rms, r.meanFlow, r.meanCutoff, r.meanDensity))
         }
+        for (s in Scenarios.abPair) {
+            val r = render(Genre.LOFI, s, s.durationSec, outDir)
+            println(String.format("%-28s peak=%.2f rms=%.3f meanFlow=%.2f meanCutoff=%5.0fHz", r.file.name, r.peak, r.rms, r.meanFlow, r.meanCutoff))
+        }
         // flow timeline for the story scenario (for the README / PT)
         val engine = SymphonyEngine(SAMPLE_RATE, Genre.LOFI, 20261030, 19, "강변북로")
         val sb = StringBuilder("t(s)\tflow\tpulse\tdensity\tcutoffHz\tevent\n")

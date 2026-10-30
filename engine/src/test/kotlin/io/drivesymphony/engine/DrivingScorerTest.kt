@@ -109,4 +109,42 @@ class DrivingScorerTest {
         }
         assertTrue(sumSafe / n > sumErr / n + 0.15, "safe mean flow ${sumSafe / n} should exceed erratic ${sumErr / n}")
     }
+
+    @Test
+    fun evasiveManoeuvreAfterCleanStreakIsOneShortBreath() {
+        // same swerve + brake stab burst; A after 40 s clean (emergency), C after 5 s (habit)
+        fun burst(t: Double, start: Double) = DrivingSignals(
+            t, gear = Gear.DRIVE, speedKmh = 50f, seatBeltFastened = true,
+            steeringAngleDeg = if (t - start < 1.2) (sin((t - start) * 9.0) * 85).toFloat() else 0f,
+            brake = (t - start) in 0.6..0.8,
+        )
+        val a = DrivingScorer(); val c = DrivingScorer()
+        run(a, 0.0, 40.0) { t -> DrivingSignals(t, gear = Gear.DRIVE, speedKmh = 50f, seatBeltFastened = true) }
+        run(c, 0.0, 5.0) { t -> DrivingSignals(t, gear = Gear.DRIVE, speedKmh = 50f, seatBeltFastened = true) }
+        var minA = 1f; var minC = 1f; var gracedSeen = false
+        var t = 0.0
+        while (t < 4.0) {
+            val sa = a.update(burst(40.0 + t, 40.0), dt); minA = minOf(minA, sa.flow); gracedSeen = gracedSeen || sa.graced
+            minC = minOf(minC, c.update(burst(5.0 + t, 5.0), dt).flow)
+            t += dt
+        }
+        println("evasive manoeuvre: min flow ${"%.2f".format(minA)} after a 40 s clean streak vs ${"%.2f".format(minC)} as a habit")
+        assertTrue(gracedSeen, "the burst after a long clean streak must be read as an emergency manoeuvre")
+        assertTrue(minA > 0.62f, "an evasive manoeuvre should only be a short breath, min flow $minA")
+        assertTrue(minA > minC + 0.15f, "the same burst as a habit must cost clearly more: evasive $minA vs habitual $minC")
+    }
+
+    @Test
+    fun overSpeedMustBeSustainedBeforeItCounts() {
+        val s = DrivingScorer()
+        run(s, 0.0, 20.0) { t -> DrivingSignals(t, gear = Gear.DRIVE, speedKmh = 48f, speedLimitKmh = 50, seatBeltFastened = true) }
+        val before = s.state.flow
+        // a 1.5 s blip to 62 km/h in a 50 zone: what a noisy position-derived speed looks like
+        run(s, 20.0, 21.5) { t -> DrivingSignals(t, gear = Gear.DRIVE, speedKmh = 62f, speedLimitKmh = 50, seatBeltFastened = true) }
+        assertEquals(0f, s.state.overSpeedRatio, "a short speed blip must not count")
+        assertTrue(s.state.flow > before - 0.02f, "flow must not react to a blip ($before -> ${s.state.flow})")
+        run(s, 21.5, 30.0) { t -> DrivingSignals(t, gear = Gear.DRIVE, speedKmh = 62f, speedLimitKmh = 50, seatBeltFastened = true) }
+        assertTrue(s.state.overSpeedRatio > 0.3f, "sustained over-speed must count (ratio ${s.state.overSpeedRatio})")
+        assertTrue(s.state.flow < before - 0.15f, "sustained over-speed must lower flow ($before -> ${s.state.flow})")
+    }
 }

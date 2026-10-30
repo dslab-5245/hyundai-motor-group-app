@@ -20,14 +20,9 @@
     <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />   <!-- turn signal -->
     <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />  <!-- wiper state (WindowArea FRONT_WINDSHIELD) -->
     <uses-permission android:name="pleos.car.permission.CAR_SEATS" />    <!-- seat occupancy, seat belt -->
-    <!-- Defensive extras copied from the official sample manifest (not referenced by the SDK's annotations; harmless if undefined). -->
-    <uses-permission android:name="pleos.car.permission.READ_CAR_STEERING" />
-    <uses-permission android:name="pleos.car.permission.READ_WINDSHIELD_WIPERS" />
 
     <!-- Pleos NaviHelper SDK (speed limit, TBT, caution points, position). -->
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
-    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
-    <uses-permission android:name="pleos.car.permission.NAVI_CUSTOM_ETC" />
 
     <application
         android:name=".DriveSymphonyApp"
