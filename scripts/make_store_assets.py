@@ -31,6 +31,17 @@ for x, y, w, h in [(40, 58, 5, 12), (51, 42, 6, 28), (63, 50, 5, 20)]:
 icon = img.resize((S, S), Image.LANCZOS)
 icon.save(os.path.join(OUT, "icon-512.png"), optimize=True)
 
+def launcher_pngs() -> None:
+    """Legacy raster launcher icons (mdpi..xxxhdpi) beside the adaptive XML, for lint and store tooling."""
+    res = os.path.join(os.path.dirname(OUT), "app", "src", "main", "res")
+    for q, px in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)):
+        d = os.path.join(res, "mipmap-" + q)
+        os.makedirs(d, exist_ok=True)
+        img.resize((px, px), Image.LANCZOS).save(os.path.join(d, "ic_launcher.png"), optimize=True)
+    print("wrote launcher PNGs under", res)
+
+launcher_pngs()
+
 mask = Image.new("L", (W, W), 0)
 ImageDraw.Draw(mask).rounded_rectangle([0, 0, W - 1, W - 1], radius=int(W * 0.18), fill=255)
 rounded = Image.new("RGBA", (W, W), (0, 0, 0, 0))

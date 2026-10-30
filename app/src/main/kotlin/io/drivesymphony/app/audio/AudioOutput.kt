@@ -79,6 +79,7 @@ class AudioOutput(
         } finally {
             track?.let { t -> try { t.stop() } catch (_: Exception) {}; t.release() }
             track = null
+            running = false   // a dead loop must not look 'running' to the next start()
         }
     }
 

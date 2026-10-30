@@ -138,6 +138,8 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
         guarded("brake") { v.getBrake().registerBrakePedalStatus(brake) }
         guarded("turnSignal") { v.getTurnSignal().registerTurnSignalState(turnSignal) }
         guarded("wiper") { v.getWiper().registerWiperState(frontWindshield, wiper) }
+        // Vehicle 2.3.2 deprecates the gear listener in favour of the android.car GEAR_SELECTION property; both are subscribed
+        @Suppress("DEPRECATION")
         guarded("gear") { v.getGear().registerGearSelection(gear) }
         guarded("driveMode") { v.getDrivingMode().registerDrivingModeState(driveMode) }
         guarded("cruise") { v.getDrivingMode().registerCruiseControlState(cruise) }
@@ -152,6 +154,7 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
         guarded("brake") { v.getBrake().unregisterBrakePedalStatus(brake) }
         guarded("turnSignal") { v.getTurnSignal().unregisterTurnSignalState(turnSignal) }
         guarded("wiper") { v.getWiper().unregisterWiperState(frontWindshield, wiper) }
+        @Suppress("DEPRECATION")
         guarded("gear") { v.getGear().unregisterGearSelection(gear) }
         guarded("driveMode") { v.getDrivingMode().unregisterDrivingModeState(driveMode) }
         guarded("cruise") { v.getDrivingMode().unregisterCruiseControlState(cruise) }

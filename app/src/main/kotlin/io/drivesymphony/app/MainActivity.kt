@@ -98,10 +98,13 @@ class MainActivity : ComponentActivity() {
 
     private fun share(summary: TripSummary) {
         // image card first; plain text if the card cannot be written (e.g. no cache dir)
-        val intent = runCatching { ShareCard.shareIntent(this, summary) }.getOrElse {
-            Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, ShareCard.caption(summary))
-        }
-        startActivity(Intent.createChooser(intent, "여정 공유"))
+        // the 1080x1350 card is rendered off the main thread; the chooser opens when it is written
+        Thread {
+            val intent = runCatching { ShareCard.shareIntent(this, summary) }.getOrElse {
+                Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, ShareCard.caption(summary))
+            }
+            runOnUiThread { startActivity(Intent.createChooser(intent, "여정 공유")) }
+        }.start()
     }
 }
 

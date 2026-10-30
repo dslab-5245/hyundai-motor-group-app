@@ -31,6 +31,7 @@ import io.drivesymphony.app.remix.LocalTrackPlayer
 import io.drivesymphony.app.share.ShareCard
 import io.drivesymphony.app.signals.PleosNaviSource
 import io.drivesymphony.app.signals.PleosVehicleSource
+import io.drivesymphony.app.signals.CarPropertyGearSource
 import io.drivesymphony.app.signals.ScenarioSource
 import io.drivesymphony.app.signals.SignalStore
 import io.drivesymphony.app.ux.DrivingStateObserver
@@ -96,6 +97,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private val vehicleSource by lazy { PleosVehicleSource(this) }
     private val naviSource by lazy { PleosNaviSource(this) }
     private val scenarioSource = ScenarioSource()
+    private val carGearSource = CarPropertyGearSource(this)
     private val drivingState by lazy { DrivingStateObserver(this) }
     private val history by lazy { TripHistory(this) }
 
@@ -115,6 +117,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     // trip bookkeeping
     private var movingSinceMs = 0L
     private var wasMoving = false
+    private var lastMovingAtMs = 0L
     private var rearOccupiedApplied = false   // rear passengers -> feedback level forced to '약'
 
     override fun onCreate() {
@@ -132,16 +135,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
         scope.launch { drivingState.restricted.collect { r -> _ui.update { it.copy(restricted = r) } } }
         startSources()
         settings.remixTrackUri?.let { runCatching { setRemixTrack(Uri.parse(it)) } }
-        // Status watcher: runs whether or not we are playing, so the signal cards are live before the first play
-        // and the opt-in auto start can actually fire (the control loop below only exists while playing).
-        scope.launch {
-            while (isActive) {
-                val vLive = vehicleSource.isLive(store); val nLive = naviSource.isLive(store)
-                _ui.update { if (it.vehicleLive != vLive || it.naviLive != nLive) it.copy(vehicleLive = vLive, naviLive = nLive) else it }
-                if (settings.autoStartOnDrive && !_ui.value.playing && store.gear == Gear.DRIVE) play()
-                delay(500)
-            }
-        }
+        // Scoring, trip tracking and signal status run for the whole service lifetime, not only while playing.
+        startControlLoop()
     }
 
     /** API 31+: a foreground start from the background (Gleo / adb intent with no visible activity) can be refused. */
@@ -153,6 +148,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private fun startSources() {
         runCatching { vehicleSource.start(store) }.onFailure { Log.w(TAG, "vehicle source failed: ${it.message}") }
         runCatching { naviSource.start(store) }.onFailure { Log.w(TAG, "navi source failed: ${it.message}") }
+        runCatching { carGearSource.start(store) }.onFailure { Log.w(TAG, "car gear source failed: ${it.message}") }
         if (settings.demoMode) { scenarioSource.setScenario(Scenarios.byId(settings.demoScenarioId)); scenarioSource.start(store) }
     }
 
@@ -179,6 +175,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 val tSec = (now - t0) / 1e9
                 val snap = store.snapshot(tSec)
                 engine.update(snap, dt)
+                if (!_ui.value.playing) engine.publishIdleState()   // render() is idle: publish for the UI and Gleo
                 // rear-seat passengers: the feedback drops to '약' automatically and comes back when they leave
                 val rear = store.rearSeatOccupied
                 if (rear != rearOccupiedApplied) {
@@ -190,8 +187,6 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 _engineState.value = st
                 val vLive = vehicleSource.isLive(store)
                 val nLive = naviSource.isLive(store)
-                // real vehicle data wins over the demo script
-                if (vLive && scenarioSource.isLive(store) && !settings.demoMode) scenarioSource.stop()
                 _ui.update { if (it.vehicleLive != vLive || it.naviLive != nLive) it.copy(vehicleLive = vLive, naviLive = nLive) else it }
                 delay(40)
             }
@@ -201,13 +196,17 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private fun trackTrip(gear: Gear, speed: Float?) {
         val moving = gear == Gear.DRIVE || (gear == Gear.UNKNOWN && (speed ?: 0f) > 5f)
         val now = System.currentTimeMillis()
-        if (moving && !wasMoving) {
-            movingSinceMs = now
-            _ui.update { it.copy(tripActive = true) }
-        }
-        if (!moving && wasMoving && gear == Gear.PARK && now - movingSinceMs > 45_000) {
+        if (moving) {
+            if (!wasMoving && now - lastMovingAtMs > 5_000) {   // a new trip, not a brief N/R blip
+                movingSinceMs = now
+                _ui.update { it.copy(tripActive = true) }
+                // opt-in: start playing when the car starts moving (off by default; never auto-plays on connection)
+                if (settings.autoStartOnDrive && !_ui.value.playing) play()
+            }
+            lastMovingAtMs = now
+        } else if (gear == Gear.PARK && _ui.value.tripActive && now - lastMovingAtMs < 10_000 && now - movingSinceMs > 45_000) {
             val summary = engine.summary()
-            history.add(summary)
+            if (summary.durationSec > 30f) history.add(summary)   // nothing was played: no song to remember
             _ui.update { it.copy(lastSummary = summary, tripActive = false, history = history.all()) }
             engine.newTrip(Calendar.getInstance().get(Calendar.HOUR_OF_DAY), store.roadName)
             updateMetadata()
@@ -221,7 +220,6 @@ class SymphonyService : MediaBrowserServiceCompat() {
         if (!requestFocus()) { Log.w(TAG, "audio focus denied"); return }
         startForegroundSafely()
         output.start()
-        startControlLoop()
         session.isActive = true
         setPlaybackState(PlaybackStateCompat.STATE_PLAYING)
         _ui.update { it.copy(playing = true) }
@@ -231,9 +229,10 @@ class SymphonyService : MediaBrowserServiceCompat() {
     fun pause() {
         if (!_ui.value.playing) return
         output.stop()
-        controlJob?.cancel(); controlJob = null
         setPlaybackState(PlaybackStateCompat.STATE_PAUSED)
         _ui.update { it.copy(playing = false) }
+        // paused: the notification stays but becomes dismissable
+        runCatching { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, buildNotification()) }
         stopForeground(STOP_FOREGROUND_DETACH)
         abandonFocus()
     }
@@ -288,7 +287,18 @@ class SymphonyService : MediaBrowserServiceCompat() {
             mode = PlayMode.REMIX
             settings.remixTrackUri = uri.toString()
             _ui.update { it.copy(mode = mode, remixTrackTitle = p.title, remixError = null) }
-            scope.launch { delay(1500); _ui.update { it.copy(remixTrackTitle = p.title, remixError = p.error) } }
+            scope.launch {
+                delay(1500)
+                if (trackPlayer !== p) return@launch
+                val err = p.error
+                if (err != null) {
+                    // unreadable at start (USB removed, grant revoked): fall back instead of playing silence
+                    Log.w(TAG, "remix track unreadable, back to generative: $err")
+                    p.stop(); trackPlayer = null; mode = PlayMode.GENERATIVE; settings.remixTrackUri = null
+                    _ui.update { it.copy(mode = mode, remixTrackTitle = null, remixError = err) }
+                    updateMetadata()
+                } else _ui.update { it.copy(remixTrackTitle = p.title, remixError = null) }
+            }
         }
         updateMetadata()
     }
@@ -415,6 +425,9 @@ class SymphonyService : MediaBrowserServiceCompat() {
         if (intent?.action == SERVICE_INTERFACE) super.onBind(intent) else binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Gleo / adb / notification intents may be delivered with startForegroundService (API 31+: startForeground within 5 s)
+        val external = intent?.action != null
+        if (external && !_ui.value.playing) startForegroundSafely()
         when (intent?.action) {
             ACTION_PLAY -> play()
             ACTION_PAUSE -> pause()
@@ -427,6 +440,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         }
         // Pleos media-app rule: keep the foreground notification current whenever the service is (re)started while playing.
         if (_ui.value.playing) startForegroundSafely()
+        else if (external) ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         return START_STICKY
     }
 
@@ -482,6 +496,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         scope.cancel()
         runCatching { vehicleSource.stop() }
         runCatching { naviSource.destroy() }
+        runCatching { carGearSource.stop() }
         scenarioSource.destroy()
         trackPlayer?.stop()
         drivingState.stop()
@@ -504,7 +519,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
             .setContentIntent(open)
             .addAction(R.drawable.ic_stat_symphony, getString(R.string.action_toggle), toggle)
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0))
-            .setOngoing(true)
+            .setOngoing(_ui.value.playing)
             .build()
     }
 

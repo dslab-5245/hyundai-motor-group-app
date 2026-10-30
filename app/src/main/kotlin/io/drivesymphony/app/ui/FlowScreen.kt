@@ -54,7 +54,7 @@ fun FlowScreen(engine: EngineState?, ui: ServiceUiState, onToggle: () -> Unit, m
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(DsColors.bg, Color(0xFF0E141C))))
+            .background(Brush.verticalGradient(listOf(DsColors.bg, DsColors.surfaceHi)))
             .padding(horizontal = 40.dp, vertical = 28.dp),
     ) {
         // Pleos screen model: an app gets one (narrow, tall) window in portrait or two windows side by side in landscape.

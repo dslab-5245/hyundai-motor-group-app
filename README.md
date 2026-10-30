@@ -52,12 +52,12 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 1. 앱 실행 → 작곡실 탭 → **연주 시작**.
 2. Virtual Console에서 **Steering**을 천천히 돌리면 패닝, **Brake**를 짧게 반복하면 150 ms 안에 음악이 가라앉고 Flow 링이 주황으로 숨쉰다. 5초간 가만히 두면 레이어가 하나씩 돌아온다.
 3. **Turn signal** 켜고 조향 → "깜빡이 좋아요" + 레이어 개방. **Wiper ON** → 비 텍스처. **Gear P** → 여정 요약 카드.
-4. 내비 없이 시연할 때는 작곡실 → **데모 시나리오** 켜기 → "시연 스토리"(106초: 시내 → 습관적 급조작 → 회복 → 고속 크루즈 만개 → 86초 긴급 회피 1회(유예: 숨만 고름) → 비 → 도착). 실제 차량 신호가 들어오면 데모는 자동 중지된다.
+4. 내비 없이 시연할 때는 작곡실 → **데모 시나리오** 켜기 → "시연 스토리"(106초: 시내 → 습관적 급조작 → 회복 → 고속 크루즈 만개 → 86초 긴급 회피 1회(유예: 숨만 고름) → 비 → 도착). 데모는 작곡실에서 끌 때까지 유지되며(기본 꺼짐) 주행 화면에 DEMO 표시가 붙는다.
 5. 리믹스: **내 음원 변주하기**로 USB/로컬 음원을 고르면 같은 flow 규칙으로 로우패스·워블·폭이 변한다.
 
 ## 제약과 정직한 표시
 
-- Vehicle SDK 2.3.2에는 **차속·가속페달·브레이크 강도가 없다.** 속도는 NaviHelper 위치(1 Hz)를 `SpeedEstimator`(4초 창 현 거리 + EMA)로 추정한다. 합성 궤적 검증: 위치 잡음 σ=3 m에서 오차 RMS 1.8 km/h, σ=5 m에서 3.1 km/h, 정지 후 3초 안에 0. 내비 미실행 시 속도 기반 규칙은 비활성화된다. 권한은 SDK jar의 권한 검사에 1:1 대응하는 5종(`CAR_DRIVE`·`CAR_LIGHTS`·`CAR_WINDOWS`·`CAR_SEATS`·`NAVI_ROUTE` — `getCurrentLocationInfo()`가 NAVI_ROUTE를 검사함)만 선언한다.
+- Vehicle SDK 2.3.2에는 **차속·가속페달·브레이크 강도가 없다.** 속도는 NaviHelper 위치(1 Hz)를 `SpeedEstimator`(4초 창 현 거리 + EMA)로 추정한다. 합성 궤적 검증: 위치 잡음 σ=3 m에서 오차 RMS 1.8 km/h, σ=5 m에서 3.1 km/h, 정지 후 3초 안에 0. 내비 미실행 시 속도 기반 규칙은 비활성화된다. 권한은 SDK jar의 권한 검사에 1:1 대응하는 5종(`CAR_DRIVE`·`CAR_LIGHTS`·`CAR_WINDOWS`·`CAR_SEATS`·`NAVI_ROUTE` — `getCurrentLocationInfo()`가 NAVI_ROUTE를 검사함)과, Vehicle 2.3.2가 기어 리스너 대신 권고하는 android.car `GEAR_SELECTION` 속성용 `CAR_POWERTRAIN`만 선언한다(기어는 두 경로를 함께 구독).
 - NaviHelper는 **Pleos Connect 내비 전용**이다(카카오내비 경로는 읽지 못함).
 - 실제 **HUD/클러스터 투사 API는 서드파티에 열려 있지 않다.** "HUD 표시"는 중앙 화면의 글랜스 레이어(Flow 링 + 세 줄)로 구현했고, 주행 중에는 그 화면만 보인다.
 - 리믹스 모드는 **앱이 직접 재생하는 음원**에만 적용된다(스트리밍 앱의 오디오는 DRM·오디오 캡처 제한으로 처리 불가). 

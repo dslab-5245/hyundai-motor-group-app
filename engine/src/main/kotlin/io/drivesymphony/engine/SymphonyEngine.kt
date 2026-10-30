@@ -181,6 +181,9 @@ class SymphonyEngine(
     val scoreState: ScoreState get() = scorer.state
     val params: MusicParams get() = targetParams
 
+    /** Publishes the current state without rendering: for the control thread while playback is stopped (no audio thread then). */
+    fun publishIdleState() { publishState(targetParams, scorer.state) }
+
     /** Control thread. */
     fun update(signals: DrivingSignals, dtSec: Float) {
         lastSignals = signals
