@@ -25,6 +25,8 @@ import androidx.media.MediaBrowserServiceCompat
 import io.drivesymphony.app.MainActivity
 import io.drivesymphony.app.R
 import io.drivesymphony.app.Settings
+import io.drivesymphony.app.history.TripHistory
+import io.drivesymphony.app.history.TripRecord
 import io.drivesymphony.app.remix.LocalTrackPlayer
 import io.drivesymphony.app.signals.PleosNaviSource
 import io.drivesymphony.app.signals.PleosVehicleSource
@@ -68,6 +70,7 @@ data class ServiceUiState(
     val remixError: String? = null,
     val lastSummary: TripSummary? = null,
     val tripActive: Boolean = false,
+    val history: List<TripRecord> = emptyList(),
 )
 
 /**
@@ -91,6 +94,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private val naviSource by lazy { PleosNaviSource(this) }
     private val scenarioSource = ScenarioSource()
     private val drivingState by lazy { DrivingStateObserver(this) }
+    private val history by lazy { TripHistory(this) }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var controlJob: Job? = null
@@ -119,7 +123,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         output = AudioOutput(SAMPLE_RATE, BLOCK_FRAMES, ::renderBlock)
         createChannel()
         setupSession()
-        _ui.update { it.copy(genre = settings.genre, feedbackLevel = settings.feedbackLevel, demo = settings.demoMode, demoScenarioId = settings.demoScenarioId) }
+        _ui.update { it.copy(genre = settings.genre, feedbackLevel = settings.feedbackLevel, demo = settings.demoMode, demoScenarioId = settings.demoScenarioId, history = history.all()) }
         drivingState.start()
         scope.launch { drivingState.restricted.collect { r -> _ui.update { it.copy(restricted = r) } } }
         startSources()
@@ -177,7 +181,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
         }
         if (!moving && wasMoving && gear == Gear.PARK && now - movingSinceMs > 45_000) {
             val summary = engine.summary()
-            _ui.update { it.copy(lastSummary = summary, tripActive = false) }
+            history.add(summary)
+            _ui.update { it.copy(lastSummary = summary, tripActive = false, history = history.all()) }
             engine.newTrip(Calendar.getInstance().get(Calendar.HOUR_OF_DAY), store.roadName)
             updateMetadata()
         }

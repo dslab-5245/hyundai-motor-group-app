@@ -77,14 +77,18 @@ fun ComposerScreen(
                 }
             }
             Spacer(Modifier.height(18.dp))
-            // mode card
+            // mode card: the two driver modes the concept defines
             Card {
-                Text(text = if (ui.mode == PlayMode.REMIX) "리믹스 모드 · ${ui.remixTrackTitle ?: ""}" else "생성 모드 · 주행이 곡을 만듭니다", fontSize = 22.sp, color = DsColors.text)
-                ui.remixError?.let { Text(text = "재생 오류: $it", fontSize = 18.sp, color = DsColors.warn) }
-                Spacer(Modifier.height(10.dp))
+                Text(text = "모드", fontSize = 22.sp, color = DsColors.muted)
+                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onPickTrack, modifier = Modifier.height(64.dp)) { Text("내 음원 변주하기", fontSize = 20.sp) }
-                    if (ui.mode == PlayMode.REMIX) OutlinedButton(onClick = onClearTrack, modifier = Modifier.height(64.dp)) { Text("생성 모드로", fontSize = 20.sp) }
+                    ModeButton("음악 만들기", "주행이 곡을 생성", ui.mode == PlayMode.GENERATIVE, accent, Modifier.weight(1f)) { if (ui.mode == PlayMode.REMIX) onClearTrack() }
+                    ModeButton("기존 음악 변주하기", ui.remixTrackTitle ?: "내 음원 선택 (USB·로컬)", ui.mode == PlayMode.REMIX, accent, Modifier.weight(1f)) { onPickTrack() }
+                }
+                ui.remixError?.let { Spacer(Modifier.height(6.dp)); Text(text = "재생 오류: $it", fontSize = 18.sp, color = DsColors.warn) }
+                if (ui.mode == PlayMode.REMIX) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(text = "같은 Flow 규칙으로 로우패스·워블·스테레오 폭이 변합니다 (스트리밍 앱 음원은 지원하지 않음)", fontSize = 17.sp, color = DsColors.muted)
                 }
             }
         }
@@ -150,6 +154,35 @@ fun ComposerScreen(
                 StatRow("NaviHelper", if (ui.naviLive) "수신 중" else "내비 미실행")
                 StatRow("주행 제한(UX)", if (ui.restricted) "주행 중 화면" else "정차 화면")
             }
+            if (ui.history.isNotEmpty()) Card {
+                Text(text = "여정의 곡 기록", fontSize = 22.sp, color = DsColors.muted)
+                Spacer(Modifier.height(6.dp))
+                for (t in ui.history.take(5)) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(text = t.title, fontSize = 20.sp, color = DsColors.text, maxLines = 1)
+                            Text(
+                                text = "Flow ${(t.averageFlow * 100).toInt()} · ${t.durationSec / 60}분 ${t.durationSec % 60}초 · ${t.bars}마디 · 가라앉음 ${t.penalties}회",
+                                fontSize = 16.sp, color = DsColors.muted, maxLines = 1,
+                            )
+                        }
+                        Chip(text = t.genre.label, color = DsColors.accent(t.genre))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModeButton(title: String, subtitle: String, selected: Boolean, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick, modifier = modifier.height(84.dp), shape = RoundedCornerShape(20.dp),
+        colors = ButtonDefaults.outlinedButtonColors(containerColor = if (selected) accent.copy(alpha = 0.22f) else Color.Transparent, contentColor = if (selected) accent else DsColors.muted),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(title, fontSize = 21.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(subtitle, fontSize = 16.sp, maxLines = 1)
         }
     }
 }

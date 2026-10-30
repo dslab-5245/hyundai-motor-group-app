@@ -84,12 +84,13 @@ data class TripSummary(
 class SymphonyEngine(
     val sampleRate: Int = 48000,
     genre: Genre = Genre.LOFI,
-    seed: Int = 1,
+    private val seed: Int = 1,
     hourOfDay: Int = 12,
     roadName: String? = null,
 ) {
     private val sr = sampleRate.toFloat()
-    private val rng = Rng(seed)
+    private var rng = Rng(seed)
+    private var tripCount = 0
     private val scorer = DrivingScorer()
     private val director = MusicDirector(genre)
 
@@ -192,6 +193,9 @@ class SymphonyEngine(
 
     /** Starts a fresh composition (new key/progression) without changing genre; used at trip start. */
     fun newTrip(hourOfDay: Int, roadName: String?) {
+        tripCount++
+        // "이 길의 테마": the same road always gets the same key, progression and motif seed; unknown roads stay fresh.
+        rng = Rng(if (!roadName.isNullOrBlank()) (roadName.hashCode() xor 0x5bd1e995) else seed + tripCount * 7919)
         keyRoot = Progressions.pickKey(hourOfDay, rng)
         this.roadName = roadName
         scorer.reset()
