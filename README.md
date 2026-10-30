@@ -16,7 +16,7 @@ drive-symphony/
 │   └─ tools/      PreviewMain: 장르×시나리오 WAV 렌더링
 └─ app/      Android Automotive(Pleos Connect) 앱
     ├─ audio/      SymphonyService(포그라운드 미디어 서비스·MediaSession·오디오 포커스), AudioOutput(AudioTrack float)
-    ├─ signals/    PleosVehicleSource(Vehicle SDK 2.3.2) · PleosNaviSource(NaviHelper 3.0.5) · ScenarioSource(데모)
+    ├─ signals/    PleosVehicleSource(Vehicle SDK 2.3.2) · CarPropertyGearSource(android.car GEAR_SELECTION) · PleosNaviSource(NaviHelper 3.0.5) · ScenarioSource(데모)
     ├─ remix/      LocalTrackPlayer(MediaCodec 디코드 → 48 kHz 스테레오 float)
     ├─ ui/         FlowScreen(주행 중 글랜스 화면) · ComposerScreen(정차 화면) · Theme(야간 기본 + 주간 팔레트, 차량 야간 모드 추종)
     └─ ux/         DrivingStateObserver(CarUxRestrictionsManager)
