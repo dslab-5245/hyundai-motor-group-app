@@ -36,6 +36,7 @@ import io.drivesymphony.app.signals.ScenarioSource
 import io.drivesymphony.app.signals.SignalStore
 import io.drivesymphony.app.ux.DrivingStateObserver
 import io.drivesymphony.engine.EngineState
+import io.drivesymphony.engine.RenderProfile
 import io.drivesymphony.engine.SymphonyEngine
 import io.drivesymphony.engine.TripSummary
 import io.drivesymphony.engine.director.Gear
@@ -75,6 +76,10 @@ data class ServiceUiState(
     val tripActive: Boolean = false,
     val history: List<TripRecord> = emptyList(),
     val autoStart: Boolean = false,
+    /** engine fell back to the light render profile (CPU budget guard) */
+    val light: Boolean = false,
+    /** audio-thread render load as a fraction of one core */
+    val engineLoad: Float = 0f,
 )
 
 /**
@@ -183,6 +188,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
                     engine.setFeedbackLevel(if (rear) 0 else settings.feedbackLevel)
                 }
                 trackTrip(snap.gear, snap.speedKmh)
+                guardLoad(dt)
                 val st = engine.state
                 _engineState.value = st
                 val vLive = vehicleSource.isLive(store)
@@ -191,6 +197,33 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 delay(40)
             }
         }
+    }
+
+    // ---------------------------------------------------------------- CPU budget guard
+    private var overBudgetSec = 0f
+    private var underBudgetSec = 0f
+
+    /**
+     * Pleos budgets < 5% CPU for a non-navigation app while driving. The audio thread reports its own render load;
+     * when synthesis alone stays above [LIGHT_ENTER_LOAD] for [LIGHT_ENTER_SEC] the engine drops to the light profile
+     * (shared mid reverb, no melody doubler; crossfaded, no click) and comes back only after [LIGHT_EXIT_SEC] under
+     * [LIGHT_EXIT_LOAD], so it never flaps. Remix mode has no synthesis and is left alone.
+     */
+    private fun guardLoad(dt: Float) {
+        val load = output.load
+        val synth = _ui.value.playing && mode == PlayMode.GENERATIVE
+        val profile = engine.profile
+        overBudgetSec = if (synth && profile == RenderProfile.FULL && load > LIGHT_ENTER_LOAD) overBudgetSec + dt else 0f
+        underBudgetSec = if (synth && profile == RenderProfile.LIGHT && load < LIGHT_EXIT_LOAD) underBudgetSec + dt else 0f
+        if (overBudgetSec >= LIGHT_ENTER_SEC) {
+            overBudgetSec = 0f; engine.profile = RenderProfile.LIGHT
+            Log.i(TAG, "engine load ${"%.1f".format(load * 100)}% over budget -> light profile")
+        } else if (underBudgetSec >= LIGHT_EXIT_SEC) {
+            underBudgetSec = 0f; engine.profile = RenderProfile.FULL
+            Log.i(TAG, "engine load ${"%.1f".format(load * 100)}% -> full profile")
+        }
+        val light = engine.profile == RenderProfile.LIGHT
+        _ui.update { if (it.light != light || kotlin.math.abs(it.engineLoad - load) > 0.002f) it.copy(light = light, engineLoad = load) else it }
     }
 
     private fun trackTrip(gear: Gear, speed: Float?) {
@@ -526,6 +559,11 @@ class SymphonyService : MediaBrowserServiceCompat() {
     companion object {
         const val SAMPLE_RATE = 48000
         const val BLOCK_FRAMES = 256
+        /** light-profile guard: enter above 4% of one core for 3 s, leave below 2% for 60 s */
+        const val LIGHT_ENTER_LOAD = 0.040f
+        const val LIGHT_EXIT_LOAD = 0.020f
+        const val LIGHT_ENTER_SEC = 3f
+        const val LIGHT_EXIT_SEC = 60f
         const val ROOT_ID = "drive_symphony_root"
         const val CHANNEL_ID = "drive_symphony_playback"
         const val NOTIF_ID = 1001

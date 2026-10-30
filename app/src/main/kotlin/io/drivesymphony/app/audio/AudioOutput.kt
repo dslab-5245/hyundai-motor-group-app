@@ -17,6 +17,9 @@ class AudioOutput(
 ) {
     @Volatile private var running = false
     @Volatile var duckGain = 1f
+    /** Render time / block time as a fraction of one core (~2 s EMA); the service's CPU-budget guard reads it. */
+    @Volatile var load = 0f
+        private set
     private var smoothGain = 1f   // audio-thread only; ~20 ms ramp toward duckGain so ducking never clicks
     private var thread: Thread? = null
     private var track: AudioTrack? = null
@@ -66,8 +69,13 @@ class AudioOutput(
             var preRoll = sampleRate / 5
             while (running && preRoll > 0) { t.write(block, 0, block.size, AudioTrack.WRITE_BLOCKING); preRoll -= blockFrames }
             smoothGain = 0f
+            load = 0f
+            val blockNs = blockFrames * 1_000_000_000.0 / sampleRate
+            val loadAlpha = (blockFrames / (sampleRate * 2.0)).toFloat()   // ~2 s window
             while (running) {
+                val t0 = System.nanoTime()
                 renderBlock(block, blockFrames)
+                load += (((System.nanoTime() - t0) / blockNs).toFloat() - load) * loadAlpha
                 smoothGain += (duckGain - smoothGain) * 0.15f
                 val g = smoothGain
                 if (g < 0.999f) for (i in block.indices) block[i] *= g

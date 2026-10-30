@@ -37,7 +37,7 @@ drive-symphony/
 요구: JDK 17, Android Studio(Android SDK 35, Pleos Connect 에뮬레이터 v2.1.0). Android SDK가 없으면 `:app`은 자동으로 제외되고 엔진만 빌드된다.
 
 ```bash
-# 엔진 단위 테스트 (36개) + 프리뷰 WAV 9개 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
+# 엔진 단위 테스트 (40개) + 프리뷰 WAV 9개 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
 ./gradlew :engine:test :engine:renderPreviews
 
 # Android 앱 (Android Studio 설치 후)
@@ -63,7 +63,7 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 - 리믹스 모드는 **앱이 직접 재생하는 음원**에만 적용된다(스트리밍 앱의 오디오는 DRM·오디오 캡처 제한으로 처리 불가). 
 - TTS/STT/Vehicle Control SDK는 '준비 중'이라 사용하지 않는다. Gleo 연동은 공식 라디오 예제의 스키마 형식(`packageName`·`appDescription`·`actionCalls[].function{name,description,parameters,component}`)으로 `assets/schema.json`에 작성했고, 앱은 함수명을 액션으로 하는 인텐트의 `ACTION_PARAM`(JSON) extra를 받아 처리한 뒤 `functionName/status/message/data` 응답을 만든다. 응답 반환 채널은 공개 문서에 없어 브로드캐스트(`io.drivesymphony.GLEO_CALLBACK`)+로그로 두었고, Gleo 심사·활성화는 HMG 측 절차다.
 - Pleos Music/Audio 앱 규정 반영: MediaBrowserService + MediaSession(play/pause/stop/skip/playFromMediaId/playFromSearch), `android:appCategory="audio"`, `androidx.car.app.launchable`, 오디오 포커스 정책(LOSS 즉시 정지·포커스 반납, LOSS_TRANSIENT(Gleo·통화) 즉시 정지 후 GAIN 시 재개, CAN_DUCK 앱 자체 -12 dB 램프 감쇠), 작업 스와이프 시 stop→stopSelf→super, 주행 중 화면은 애니메이션 없이 단계값만 갱신(5점 단위 Flow 링·on/off 할로).
-- 주행 중 비내비 앱 CPU 예산(5% 미만)은 에뮬레이터/실차에서 측정해야 한다. 데스크톱 JVM 실측은 단일 코어 2.3~2.8%(장르별). 차량에서 예산을 넘기면 리버브·오버샘플링을 낮추는 라이트 프로파일로 대응한다.
+- 주행 중 비내비 앱 CPU 예산(5% 미만)은 에뮬레이터/실차에서 측정해야 한다. 데스크톱 JVM 실측은 단일 코어 1.0~1.3%(장르별; 4096점 사인 테이블·필터 계수 캐시·곱셈 포락선·재귀 LFO로 2.3~2.8%에서 절반으로 줄였고 소리는 동일). 차량에서 예산을 넘기면 자동으로 **라이트 프로파일**로 내려간다: 오디오 스레드가 자기 렌더 부하를 재서 4%를 3초 넘기면 리버브를 1채널(미드) 공유로 바꾸고 멜로디 더블러를 끈다(0.3초 크로스페이드, 측정 클릭 0·음량 차 0.02 dB, 비용 −7~8%); 2% 아래로 60초면 복귀. 작곡실 '오디오 부하' 행과 logcat `engine load`로 확인하고, 구성요소별 비용은 `EngineCostBreakdownTest` 출력(COST 행)으로 본다.
 
 ## 제출 자료
 

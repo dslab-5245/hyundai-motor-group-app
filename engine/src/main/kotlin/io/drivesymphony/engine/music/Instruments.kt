@@ -8,6 +8,7 @@ import io.drivesymphony.engine.dsp.Osc
 import io.drivesymphony.engine.dsp.PinkNoise
 import io.drivesymphony.engine.dsp.PluckString
 import io.drivesymphony.engine.dsp.Rng
+import io.drivesymphony.engine.dsp.SineTable
 import io.drivesymphony.engine.dsp.Svf
 import io.drivesymphony.engine.dsp.midiToHz
 import io.drivesymphony.engine.dsp.panGains
@@ -173,84 +174,95 @@ class Drums(private val sr: Float, seed: Int) {
     private val rng = Rng(seed)
     private val pink = PinkNoise(seed + 11)
 
+    // Decays are exp(-k*t); with t advancing by 1/sr they are advanced by one multiply per sample (exactly the same
+    // curve as calling exp() each sample, minus the libm call). One state per decaying component.
+    private fun decay(k: Float) = exp(-k / sr)
     // kick
     private var kickT = -1f; private var kickVel = 0f; private var kickPh = 0f
+    private val dKickF = decay(28f); private val dKickBody = decay(6.5f); private val dKickClick = decay(400f)
+    private var eKickF = 1f; private var eKickBody = 1f; private var eKickClick = 1f
     // snare
     private var snT = -1f; private var snVel = 0f; private var snPh = 0f; private var snBrush = false
     private val snBp = Svf(sr).apply { set(1800f, 0.6f) }
+    private val dSnBrush = decay(9f); private val dSnStick = decay(14f); private val dSnTone = decay(30f)
+    private var dSnNoise = dSnStick; private var eSnNoise = 1f; private var eSnTone = 1f
     // hats
     private var hatT = -1f; private var hatVel = 0f; private var hatOpen = false
     private val hatHp = Svf(sr).apply { set(7000f, 0.3f) }
+    private val dHatOpen = decay(5f); private val dHatClosed = decay(38f)
+    private var dHat = dHatClosed; private var eHat = 1f
     // ride
     private var rideT = -1f; private var rideVel = 0f; private var ridePh = 0f
     private val rideBp = Svf(sr).apply { set(5200f, 0.75f) }
+    private val dRidePing = decay(7f); private val dRideWash = decay(3.2f)
+    private var eRidePing = 1f; private var eRideWash = 1f
     // shaker
     private var shT = -1f; private var shVel = 0f
     private val shHp = Svf(sr).apply { set(5000f, 0.2f) }
+    private val dSh = decay(26f); private var eSh = 1f
     // rim
     private var rimT = -1f; private var rimVel = 0f; private var rimPh = 0f
+    private val dRim = decay(60f); private var eRim = 1f
 
     var brushed = false
 
-    fun kick(v: Float) { kickT = 0f; kickVel = v; kickPh = 0f }
-    fun snare(v: Float) { snT = 0f; snVel = v; snPh = 0f; snBrush = brushed }
-    fun hat(v: Float, open: Boolean) { hatT = 0f; hatVel = v; hatOpen = open }
-    fun ride(v: Float) { rideT = 0f; rideVel = v; ridePh = rng.nextFloat() }
-    fun shaker(v: Float) { shT = 0f; shVel = v }
-    fun rim(v: Float) { rimT = 0f; rimVel = v; rimPh = 0f }
+    fun kick(v: Float) { kickT = 0f; kickVel = v; kickPh = 0f; eKickF = 1f; eKickBody = 1f; eKickClick = 1f }
+    fun snare(v: Float) { snT = 0f; snVel = v; snPh = 0f; snBrush = brushed; dSnNoise = if (snBrush) dSnBrush else dSnStick; eSnNoise = 1f; eSnTone = 1f }
+    fun hat(v: Float, open: Boolean) { hatT = 0f; hatVel = v; hatOpen = open; dHat = if (open) dHatOpen else dHatClosed; eHat = 1f }
+    fun ride(v: Float) { rideT = 0f; rideVel = v; ridePh = rng.nextFloat(); eRidePing = 1f; eRideWash = 1f }
+    fun shaker(v: Float) { shT = 0f; shVel = v; eSh = 1f }
+    fun rim(v: Float) { rimT = 0f; rimVel = v; rimPh = 0f; eRim = 1f }
 
     fun render(out: StereoOut, gain: Float) {
         var l = 0f; var r = 0f
         val inv = 1f / sr
         if (kickT >= 0f) {
-            val t = kickT
-            val f = 48f + 110f * exp(-t * 28f)
+            val f = 48f + 110f * eKickF
             kickPh += f * inv; if (kickPh >= 1f) kickPh -= 1f
-            val body = sin((kickPh * 6.2831853f)) * exp(-t * 6.5f)
-            val click = rng.nextBipolar() * exp(-t * 400f) * 0.25f
+            val body = SineTable.sin01(kickPh) * eKickBody
+            val click = rng.nextBipolar() * eKickClick * 0.25f
             val s = softClip((body + click) * 1.3f) * kickVel
             l += s; r += s
+            eKickF *= dKickF; eKickBody *= dKickBody; eKickClick *= dKickClick
             kickT += inv; if (kickT > 0.6f) kickT = -1f
         }
         if (snT >= 0f) {
-            val t = snT
-            val dec = if (snBrush) 9f else 14f
-            val n = snBp.process(rng.nextBipolar()) * exp(-t * dec) * (if (snBrush) 1.2f else 0.9f)
+            val n = snBp.process(rng.nextBipolar()) * eSnNoise * (if (snBrush) 1.2f else 0.9f)
             snPh += 185f * inv; if (snPh >= 1f) snPh -= 1f
-            val tone = sin(snPh * 6.2831853f) * exp(-t * 30f) * (if (snBrush) 0.15f else 0.5f)
+            val tone = SineTable.sin01(snPh) * eSnTone * (if (snBrush) 0.15f else 0.5f)
             val s = (n + tone) * snVel * 0.8f
             l += s * 0.95f; r += s * 1.05f
+            eSnNoise *= dSnNoise; eSnTone *= dSnTone
             snT += inv; if (snT > 0.5f) snT = -1f
         }
         if (hatT >= 0f) {
-            val t = hatT
-            val dec = if (hatOpen) 5f else 38f
             hatHp.process(rng.nextBipolar())
-            val s = hatHp.high * exp(-t * dec) * hatVel * 0.35f
+            val s = hatHp.high * eHat * hatVel * 0.35f
             l += s * 1.5f; r += s * 0.5f   // hats sit left of the drummer
+            eHat *= dHat
             hatT += inv; if (hatT > 0.7f) hatT = -1f
         }
         if (rideT >= 0f) {
-            val t = rideT
             ridePh += 3150f * inv; if (ridePh >= 1f) ridePh -= 1f
-            val ping = sin(ridePh * 6.2831853f) * exp(-t * 7f) * 0.18f
-            val wash = rideBp.bandpass.let { rideBp.process(rng.nextBipolar()); rideBp.bandpass } * exp(-t * 3.2f) * 0.45f
+            val ping = SineTable.sin01(ridePh) * eRidePing * 0.18f
+            val wash = rideBp.bandpass.let { rideBp.process(rng.nextBipolar()); rideBp.bandpass } * eRideWash * 0.45f
             val s = (ping + wash) * rideVel
             l += s * 0.5f; r += s * 1.5f   // ride on the right
+            eRidePing *= dRidePing; eRideWash *= dRideWash
             rideT += inv; if (rideT > 1.2f) rideT = -1f
         }
         if (shT >= 0f) {
-            val t = shT
             shHp.process(pink.process())
-            val s = shHp.high * exp(-t * 26f) * shVel * 0.5f
+            val s = shHp.high * eSh * shVel * 0.5f
             l += s * 0.7f; r += s * 1.3f
+            eSh *= dSh
             shT += inv; if (shT > 0.3f) shT = -1f
         }
         if (rimT >= 0f) {
-            val t = rimT
             rimPh += 1200f * inv; if (rimPh >= 1f) rimPh -= 1f
-            val s = (sin(rimPh * 6.2831853f) * 0.6f + rng.nextBipolar() * 0.3f) * exp(-t * 60f) * rimVel * 0.6f
+            val s = (SineTable.sin01(rimPh) * 0.6f + rng.nextBipolar() * 0.3f) * eRim * rimVel * 0.6f
             l += s; r += s
+            eRim *= dRim
             rimT += inv; if (rimT > 0.15f) rimT = -1f
         }
         out.l += l * gain
@@ -299,7 +311,7 @@ class Texture(private val sr: Float, seed: Int) {
             swellT += inv; if (swellT > 6f) swellT = -1f
         }
         hum += 50f * inv; if (hum >= 1f) hum -= 1f
-        val h = sin(hum * 6.2831853f) * crackle * 0.01f
+        val h = SineTable.sin01(hum) * crackle * 0.01f
         out.l += (c * 1.05f + rn * 0.9f + sw + h) * gain
         out.r += (c * 0.95f + rn * 1.1f + sw + h) * gain
     }
@@ -327,7 +339,7 @@ class Drone(private val sr: Float) {
         hz += (targetHz - hz) * 2e-4f                 // glide between chord roots
         a.frequency = hz * 0.996f; b.frequency = hz * 1.004f
         lfoPhase += lfoInc; if (lfoPhase >= 1f) lfoPhase -= 1f
-        filt.set(220f + 90f * sin(lfoPhase * 6.2831855f), 0.15f)
+        filt.set(220f + 90f * SineTable.sin01(lfoPhase), 0.15f)
         val v = filt.process((a.saw() + b.saw()) * 0.5f) * level
         out.l += v * 0.92f; out.r += v * 1.08f
     }

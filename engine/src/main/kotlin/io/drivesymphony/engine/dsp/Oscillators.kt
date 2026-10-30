@@ -1,7 +1,5 @@
 package io.drivesymphony.engine.dsp
 
-import kotlin.math.sin
-
 /** Phase accumulator oscillator with PolyBLEP anti-aliased saw/square and a plain sine. */
 class Osc(private val sampleRate: Float) {
     private var phase = 0f // 0..1
@@ -22,7 +20,7 @@ class Osc(private val sampleRate: Float) {
         }
     }
 
-    fun sine(): Float { val v = sin((phase * TWO_PI).toFloat()); step(); return v }
+    fun sine(): Float { val v = SineTable.sin01(phase); step(); return v }
 
     fun triangle(): Float {
         val v = if (phase < 0.5f) 4f * phase - 1f else 3f - 4f * phase
@@ -63,9 +61,9 @@ class FmTine(private val sampleRate: Float) {
     fun reset() { phC = 0f; phM = 0f; phT = 0f }
     /** @param index modulation index (0..3) @param tine tine partial amount (0..1) */
     fun process(index: Float, tine: Float): Float {
-        val m = sin((phM * TWO_PI).toFloat())
-        val c = sin(((phC + index * 0.15f * m) * TWO_PI).toFloat())
-        val t = sin((phT * TWO_PI).toFloat()) * tine
+        val m = SineTable.sin01(phM)
+        val c = SineTable.sin01(phC + index * 0.15f * m)
+        val t = SineTable.sin01(phT) * tine
         phC += incC; if (phC >= 1f) phC -= 1f
         phM += incM; if (phM >= 1f) phM -= 1f
         phT += incT; if (phT >= 1f) phT -= 1f

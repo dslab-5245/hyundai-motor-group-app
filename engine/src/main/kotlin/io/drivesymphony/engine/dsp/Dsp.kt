@@ -2,6 +2,7 @@ package io.drivesymphony.engine.dsp
 
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.pow
@@ -30,6 +31,24 @@ fun softClip(x: Float): Float {
     return if (a < 0.5f) x else {
         val s = if (x < 0f) -1f else 1f
         s * (0.5f + (1f - exp(-(a - 0.5f) * 2f)) * 0.5f)
+    }
+}
+
+/**
+ * 4096-point sine table with linear interpolation: sin(2*pi*phase) for any phase (wrapped into [0,1)).
+ * Max error ~3e-7, i.e. far below the 24-bit noise floor, at a fraction of the cost of a libm sin() per sample.
+ * Used by every per-sample oscillator; coefficient maths (filters, LFO rates) keep the exact sin().
+ */
+object SineTable {
+    private const val N = 4096
+    private val tbl = FloatArray(N + 2) { sin(it * TWO_PI / N).toFloat() }
+    fun sin01(phase: Float): Float {
+        var p = phase - phase.toInt()
+        if (p < 0f) p += 1f
+        val x = p * N
+        val i = x.toInt()
+        val a = tbl[i]
+        return a + (tbl[i + 1] - a) * (x - i)
     }
 }
 
@@ -63,9 +82,15 @@ class Svf(private val sampleRate: Float) {
     private var f = 0f
     private var q = 1f
     private var lastHigh = 0f
+    private var lastC = -1f
+    private var lastR = -1f
 
     fun set(cutoffHz: Float, resonance: Float) {
         val c = cutoffHz.coerceIn(20f, sampleRate / 6f)
+        // the coefficient costs a sin(); instruments sweep the cutoff per sample, so skip moves under 0.1 % (inaudible)
+        val d = c - lastC
+        if (resonance == lastR && d < c * 0.001f && d > -c * 0.001f) return
+        lastC = c; lastR = resonance
         f = (2f * sin((PI * c / sampleRate).toFloat())).coerceIn(0.0001f, 1.2f)
         q = (1f - resonance.coerceIn(0f, 0.98f))
         if (q < 0.05f) q = 0.05f
@@ -115,14 +140,21 @@ class Adsr(private val sampleRate: Float) {
     }
 }
 
-/** Low-frequency oscillator producing a sine in [-1,1]. */
+/**
+ * Low-frequency oscillator producing a sine in [-1,1]. Coupled-form ("magic circle") recursion: one multiply-add
+ * pair per sample and no trig call. The recursion is symplectic, so the amplitude does not drift.
+ */
 class Lfo(private val sampleRate: Float, hz: Float, phase: Float = 0f) {
-    private var ph = phase
-    var rateHz = hz
+    private var s = sin((phase * TWO_PI).toFloat())
+    private var c = cos((phase * TWO_PI).toFloat())
+    private var eps = 0f
+    var rateHz: Float = hz
+        set(v) { field = v; eps = 2f * sin((PI * v / sampleRate).toFloat()) }
+    init { rateHz = hz }
     fun process(): Float {
-        val out = sin((ph * TWO_PI).toFloat())
-        ph += rateHz / sampleRate
-        if (ph >= 1f) ph -= 1f
+        val out = s
+        s += eps * c
+        c -= eps * s
         return out
     }
 }
@@ -205,6 +237,9 @@ class Reverb(sampleRate: Float, stereoOffset: Int = 0) {
     private val apLen = IntArray(4) { (apTunings[it] * scale).toInt() + stereoOffset }
     var roomSize = 0.82f
     var damping = 0.35f
+
+    /** Silences the tail; used when a channel's reverb was idle (light profile) and must not replay stale audio. */
+    fun clear() { for (c in combs) c.clear(); for (a in aps) a.clear(); combStore.fill(0f) }
 
     fun process(x: Float): Float {
         val input = x * 0.015f

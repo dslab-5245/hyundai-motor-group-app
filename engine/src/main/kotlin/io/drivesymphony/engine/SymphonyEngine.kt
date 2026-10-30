@@ -37,6 +37,13 @@ import io.drivesymphony.engine.theory.Genre
 import io.drivesymphony.engine.theory.Pitch
 import io.drivesymphony.engine.theory.Progressions
 
+/**
+ * Synthesis cost profile. LIGHT keeps the composition, the lo-fi stage and the master tone, but renders one shared
+ * (mid) reverb instead of two and drops the melody micro-doubler; the app switches to it when the audio thread's own
+ * load passes the Pleos CPU budget. Switching crossfades over ~0.3 s on the audio thread, so it never clicks.
+ */
+enum class RenderProfile { FULL, LIGHT }
+
 /** Snapshot for the UI (HUD-style glance screen, composer screen). Immutable; replaced per block. */
 data class EngineState(
     val genre: Genre,
@@ -61,6 +68,8 @@ data class EngineState(
     val peak: Float,
     /** last penalty was read as an emergency manoeuvre (half penalty, short breath). */
     val graced: Boolean = false,
+    /** rendering with the light (CPU-saving) profile. */
+    val light: Boolean = false,
 )
 
 data class TripSummary(
@@ -99,6 +108,8 @@ class SymphonyEngine(
 
     @Volatile private var targetParams: MusicParams = MusicParams()
     @Volatile private var pendingGenre: Genre? = null
+    /** Any thread. The audio thread crossfades toward it; see [RenderProfile]. */
+    @Volatile var profile: RenderProfile = RenderProfile.FULL
     @Volatile var state: EngineState = EngineState(genre, "", "", "", 80f, 0, 0f, 0.6f, 0.6f, 0f, 0f, false, null, 999f, 1.5f, 0f, emptyList(), "", 0f, 0f)
         private set
 
@@ -136,7 +147,9 @@ class SymphonyEngine(
     private val smoothGain = OnePole(sr).apply { setTimeConstant(0.03f); reset(1f) }
     private val smoothRev = OnePole(sr).apply { setTimeConstant(0.1f); reset(0.25f) }
     private val smoothWidth = OnePole(sr).apply { setTimeConstant(0.1f); reset(0.8f) }
-    private val smoothPan = OnePole(sr).apply { setTimeConstant(0.2f) }
+    private val smoothPanL = OnePole(sr).apply { setTimeConstant(0.2f); reset(0.70710677f) }
+    private val smoothPanR = OnePole(sr).apply { setTimeConstant(0.2f); reset(0.70710677f) }
+    private val smoothLight = OnePole(sr).apply { setTimeConstant(0.3f) }   // 0 = FULL .. 1 = LIGHT, audio thread
     private val mix = StereoOut()
     private val leadMix = StereoOut()
     private val leadDly = DelayLine(2048)   // micro-doubler: two short delays widen the melody without a chorus
@@ -377,27 +390,34 @@ class SymphonyEngine(
         revL.roomSize = if (genre == Genre.AMBIENT) 0.9f else 0.8f; revR.roomSize = revL.roomSize
         val targetGain = dbToGain(p.gainDb)
         val drumsGain = 0.9f * (if (genre == Genre.JAZZ) 0.75f else 1f)
+        // light profile crossfade; when coming back to FULL the idle right reverb / doubler must not replay stale audio
+        val lightTarget = if (profile == RenderProfile.LIGHT) 1f else 0f
+        if (lightTarget == 0f && smoothLight.value > 0.999f) { revR.clear(); leadDly.clear() }
+        // musical pan from steering (gentle): equal-power gains computed once per block, smoothed per sample
+        val pp = (p.pan.coerceIn(-1f, 1f) * 0.5f + 1f) * 0.25f * 3.1415927f
+        val panL = cos(pp); val panR = sin(pp)
         var blockPeak = 0f
         var o = 0
         for (i in 0 until frames) {
             if (pendCount > 0) tickPending(p)
+            val lt = smoothLight.process(lightTarget)
             mix.l = 0f; mix.r = 0f
             ep.render(mix, gEp * 0.55f)
             leadMix.l = 0f; leadMix.r = 0f
             lead.render(leadMix, gLead * 0.4f)
-            leadDly.write((leadMix.l + leadMix.r) * 0.5f)
-            mix.l += leadMix.l + leadDly.readInt(430) * 0.3f
-            mix.r += leadMix.r + leadDly.readInt(290) * 0.3f
+            if (lt < 0.999f) {
+                leadDly.write((leadMix.l + leadMix.r) * 0.5f)
+                val dbl = 0.3f * (1f - lt)
+                mix.l += leadMix.l + leadDly.readInt(430) * dbl
+                mix.r += leadMix.r + leadDly.readInt(290) * dbl
+            } else { mix.l += leadMix.l; mix.r += leadMix.r }
             bass.render(mix, gBass * 0.7f)
             drone.render(mix, gDrone * 0.32f)
             pad.render(mix, gPad * 0.5f)
             drums.render(mix, drumsGain * (if (gDrums < 0.02f) 0f else 1f) * (0.4f + 0.6f * gDrums))
             texture.render(mix, p.crackle * gTex, p.rain, 0.8f)
 
-            // musical pan from steering (gentle) applied to the dry mix
-            val pan = smoothPan.process(p.pan)
-            val pp = (pan * 0.5f + 1f) * 0.25f * 3.1415927f
-            val gl = cos(pp); val gr = sin(pp)
+            val gl = smoothPanL.process(panL); val gr = smoothPanR.process(panR)
             var l = mix.l * (0.75f + gl * 0.35f)
             var r = mix.r * (0.75f + gr * 0.35f)
 
@@ -406,9 +426,12 @@ class SymphonyEngine(
             l = crushL.process(l); r = crushR.process(r)
             l = wobL.process(l); r = wobR.process(r)
 
-            // reverb send + stereo width
+            // reverb send + stereo width (LIGHT: one reverb on the mid signal feeds both channels)
             val rv = smoothRev.process(p.reverbMix)
-            val wl = revL.process(l); val wr = revR.process(r)
+            val wl: Float; val wr: Float
+            if (lt < 0.001f) { wl = revL.process(l); wr = revR.process(r) }
+            else if (lt > 0.999f) { wl = revL.process((l + r) * 0.5f); wr = wl }
+            else { wl = revL.process(l + (r - l) * 0.5f * lt); wr = revR.process(r) * (1f - lt) + wl * lt }
             l += wl * rv; r += wr * rv
             val w = smoothWidth.process(p.width)
             val mid = (l + r) * 0.5f
@@ -466,6 +489,7 @@ class SymphonyEngine(
             lastEvent = score.lastEvent,
             lastEventAgeSec = score.lastEventAgeSec,
             graced = score.graced,
+            light = smoothLight.value > 0.5f,
             density = densityEff,
             bloom = p.bloom,
             layers = ArrayList(layersActive),
