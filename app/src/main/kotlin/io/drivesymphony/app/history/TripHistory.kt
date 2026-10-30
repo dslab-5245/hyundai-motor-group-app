@@ -35,7 +35,7 @@ class TripHistory(context: Context) {
                 .put("pen", s.eventCounts.filterKeys { it.isPenalty }.values.sum()).put("t", endedAtMs)
         )
         val old = runCatching { JSONArray(prefs.getString(KEY, "[]") ?: "[]") }.getOrDefault(JSONArray())
-        for (i in 0 until minOf(old.length(), MAX - 1)) arr.put(old.getJSONObject(i))
+        for (i in 0 until minOf(old.length(), MAX - 1)) old.optJSONObject(i)?.let { arr.put(it) }
         prefs.edit().putString(KEY, arr.toString()).apply()
     }
 

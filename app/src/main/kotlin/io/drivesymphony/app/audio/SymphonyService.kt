@@ -42,6 +42,7 @@ import io.drivesymphony.engine.remix.TrackProcessor
 import io.drivesymphony.engine.scenario.Scenarios
 import io.drivesymphony.engine.theory.Genre
 import io.drivesymphony.engine.theory.GenreParser
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -98,7 +99,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private val drivingState by lazy { DrivingStateObserver(this) }
     private val history by lazy { TripHistory(this) }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> Log.e(TAG, "service coroutine", e) })
     private var controlJob: Job? = null
 
     private val _engineState = MutableStateFlow<EngineState?>(null)
@@ -131,6 +132,22 @@ class SymphonyService : MediaBrowserServiceCompat() {
         scope.launch { drivingState.restricted.collect { r -> _ui.update { it.copy(restricted = r) } } }
         startSources()
         settings.remixTrackUri?.let { runCatching { setRemixTrack(Uri.parse(it)) } }
+        // Status watcher: runs whether or not we are playing, so the signal cards are live before the first play
+        // and the opt-in auto start can actually fire (the control loop below only exists while playing).
+        scope.launch {
+            while (isActive) {
+                val vLive = vehicleSource.isLive(store); val nLive = naviSource.isLive(store)
+                _ui.update { if (it.vehicleLive != vLive || it.naviLive != nLive) it.copy(vehicleLive = vLive, naviLive = nLive) else it }
+                if (settings.autoStartOnDrive && !_ui.value.playing && store.gear == Gear.DRIVE) play()
+                delay(500)
+            }
+        }
+    }
+
+    /** API 31+: a foreground start from the background (Gleo / adb intent with no visible activity) can be refused. */
+    private fun startForegroundSafely() {
+        runCatching { ServiceCompat.startForeground(this, NOTIF_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) }
+            .onFailure { Log.w(TAG, "startForeground refused: ${it.message}") }
     }
 
     private fun startSources() {
@@ -187,8 +204,6 @@ class SymphonyService : MediaBrowserServiceCompat() {
         if (moving && !wasMoving) {
             movingSinceMs = now
             _ui.update { it.copy(tripActive = true) }
-            // opt-in: start playing when the car starts moving (off by default; never auto-plays on connection)
-            if (settings.autoStartOnDrive && !_ui.value.playing) play()
         }
         if (!moving && wasMoving && gear == Gear.PARK && now - movingSinceMs > 45_000) {
             val summary = engine.summary()
@@ -204,7 +219,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     fun play() {
         if (_ui.value.playing) return
         if (!requestFocus()) { Log.w(TAG, "audio focus denied"); return }
-        ServiceCompat.startForeground(this, NOTIF_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        startForegroundSafely()
         output.start()
         startControlLoop()
         session.isActive = true
@@ -411,7 +426,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
             GLEO_START, GLEO_SET_GENRE, GLEO_HOW_IS_MY_DRIVING, GLEO_PAUSE -> handleGleoIntent(intent)
         }
         // Pleos media-app rule: keep the foreground notification current whenever the service is (re)started while playing.
-        if (_ui.value.playing) ServiceCompat.startForeground(this, NOTIF_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        if (_ui.value.playing) startForegroundSafely()
         return START_STICKY
     }
 
@@ -462,7 +477,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         controlJob?.cancel()
         scope.cancel()
         runCatching { vehicleSource.stop() }
-        runCatching { naviSource.stop() }
+        runCatching { naviSource.destroy() }
         scenarioSource.destroy()
         trackPlayer?.stop()
         drivingState.stop()

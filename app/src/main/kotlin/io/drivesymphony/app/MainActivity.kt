@@ -114,7 +114,8 @@ private fun Root(service: SymphonyService?, onPickTrack: () -> Unit, onShare: (T
     val engine by service.engineState.collectAsState()
     val ui by service.ui.collectAsState()
     // Driving gate: UX restrictions from the car, or (if the car library is missing) the engine's moving flag (gear D / speed).
-    val driving = ui.restricted || (engine?.moving == true)
+    // EngineState is published from the audio thread, so its moving flag is only trusted while playing.
+    val driving = ui.restricted || (ui.playing && engine?.moving == true)
     var tab by remember { mutableStateOf(0) }
 
     if (driving) {

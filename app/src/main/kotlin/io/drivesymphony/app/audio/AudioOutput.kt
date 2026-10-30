@@ -22,7 +22,7 @@ class AudioOutput(
     private var track: AudioTrack? = null
 
     fun start() {
-        if (running) return
+        if (running || thread?.isAlive == true) return
         running = true
         thread = Thread({ loop() }, "DriveSymphonyAudio").apply { start() }
     }
@@ -30,7 +30,8 @@ class AudioOutput(
     fun stop() {
         running = false
         thread?.join(500)
-        thread = null
+        // keep the reference while the thread is still finishing so start() cannot spawn a second one
+        if (thread?.isAlive == true) Log.w(TAG, "audio thread still running after stop()") else thread = null
     }
 
     private fun loop() {
