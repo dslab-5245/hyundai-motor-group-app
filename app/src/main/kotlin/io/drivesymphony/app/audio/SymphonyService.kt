@@ -457,7 +457,11 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 val flowPct = (st.flow * 100).toInt()
                 val data = org.json.JSONObject().put("flow", flowPct).put("lastEvent", ev?.label ?: "").put("streakSec", st.streakSec.toInt())
                 val msg = if (ev != null && ev.isPenalty && st.lastEventAgeSec < 10f) "방금 ${ev.label}이 있었어요. 지금 Flow ${flowPct}점이에요"
-                          else "부드럽게 ${st.streakSec.toInt()}초째, Flow ${flowPct}점이에요"
+                          else {
+                              val sec = st.streakSec.toInt()
+                              val since = if (sec >= 60) "${sec / 60}분째" else "${sec}초째"
+                              "지금 흐름 ${flowPct}점, $since 부드럽게 달리고 있어요"
+                          }
                 gleoReply(GLEO_HOW_IS_MY_DRIVING, "success", msg, data)
             }
         }

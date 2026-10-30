@@ -21,6 +21,7 @@ import io.drivesymphony.engine.dsp.dbToGain
 import kotlin.math.cos
 import kotlin.math.sin
 import io.drivesymphony.engine.music.Arranger
+import io.drivesymphony.engine.music.Drone
 import io.drivesymphony.engine.music.BarContext
 import io.drivesymphony.engine.music.Bass
 import io.drivesymphony.engine.music.Clock
@@ -155,6 +156,12 @@ class SymphonyEngine(
     private var currentChord: Chord = progression[0]
     private var nextChord: Chord = progression[1 % progression.size]
     private val layersActive = ArrayList<String>(8)
+    private val drone = Drone(sr)
+    private var gDrone = 0f
+    private var rainSamples = 0L
+    private var rainy = false
+    @Volatile private var rewardUntilBar = -1   // signaled-turn reward: one extra layer until this bar
+    private var densityEff = 1.5f
 
     // trip stats
     private var elapsedSamples = 0L
@@ -179,7 +186,7 @@ class SymphonyEngine(
         lastSignals = signals
         if (signals.roadName != null && signals.roadName != roadName) {
             roadName = signals.roadName
-            title = TripTitles.make(roadName, signals.hourOfDay, keyRoot, genre)
+            title = TripTitles.make(roadName, signals.hourOfDay, keyRoot, genre, rainy)
         }
         val score = scorer.update(signals, dtSec)
         val ev = score.lastEvent
@@ -190,6 +197,8 @@ class SymphonyEngine(
             lastCountedAt = signals.timeSec
         }
         if (score.streakSec > bestStreak) bestStreak = score.streakSec
+        // signaled turn: an immediate, audible reward -> one extra layer for the next two bars
+        if (ev == DriveEvent.SIGNALED_TURN && score.lastEventAgeSec < 1e-4f) rewardUntilBar = clock.bar + 2
         targetParams = director.update(score, signals, dtSec)
         wasMoving = score.moving
     }
@@ -209,11 +218,12 @@ class SymphonyEngine(
         this.roadName = roadName
         scorer.reset()
         elapsedSamples = 0; flowAccum = 0.0; flowSamples = 0; bestStreak = 0f; bloomSamples = 0; eventCounts.clear()
+        rainSamples = 0; rainy = false; rewardUntilBar = -1
         cadenceBars = 1      // one resolution bar first, then ...
         pendingGenre = genre // ... applyGenre at the following bar -> new progression in the new key
     }
 
-    fun setRoadName(name: String?) { roadName = name; title = TripTitles.make(name, lastSignals.hourOfDay, keyRoot, genre) }
+    fun setRoadName(name: String?) { roadName = name; title = TripTitles.make(name, lastSignals.hourOfDay, keyRoot, genre, rainy) }
 
     private fun applyGenre(g: Genre) {
         genre = g
@@ -232,7 +242,7 @@ class SymphonyEngine(
         pad.cutoffBase = when (g) { Genre.AMBIENT -> 420f; Genre.LOFI -> 520f; Genre.JAZZ -> 700f }
         ep.allOff(); lead.allOff(); pad.allOff()
         pendCount = 0
-        title = TripTitles.make(roadName, lastSignals.hourOfDay, keyRoot, g)
+        title = TripTitles.make(roadName, lastSignals.hourOfDay, keyRoot, g, rainy)
     }
 
     init { applyGenre(genre) }
@@ -272,7 +282,9 @@ class SymphonyEngine(
         ctx.section = section
         ctx.intro = barsSinceGenre < 2
         ctx.fill = ctx.barInSection == SECTION_BARS - 1
-        barEvents = arranger.bar(currentChord, nextChord, p, ctx)
+        drone.setRoot(currentChord.rootPc)
+        val pr = if (bar < rewardUntilBar) p.copy(density = minOf(3f, p.density + 0.6f)) else p
+        barEvents = arranger.bar(currentChord, nextChord, pr, ctx)
     }
 
     private fun onStep(step: Int) {
@@ -340,7 +352,8 @@ class SymphonyEngine(
     fun render(out: FloatArray, frames: Int) {
         val p = targetParams
         // layer gains follow density continuously (so a dip is heard mid-bar, not only at the next bar)
-        val d = p.density
+        val d = if (clock.bar < rewardUntilBar) minOf(3f, p.density + 0.6f) else p.density
+        densityEff = d
         val tDrums = clamp01((d - 0.7f) / 0.6f)
         val tHats = clamp01((d - 1.6f) / 0.6f)
         val tLead = p.bloom
@@ -351,6 +364,7 @@ class SymphonyEngine(
         gDrums += (tDrums - gDrums) * k; gHats += (tHats - gHats) * k; gLead += (tLead - gLead) * k
         gPad += (tPad - gPad) * k; gEp += (tEp - gEp) * k; gBass += (tBass - gBass) * k
         gTex += ((0.25f + p.crackle * 0.5f) - gTex) * k
+        gDrone += (p.drone * (when (genre) { Genre.JAZZ -> 0.5f; Genre.AMBIENT -> 1.1f; Genre.LOFI -> 0.85f }) - gDrone) * k
 
         clock.advance(frames, ::onBar, ::onStep)
 
@@ -372,6 +386,7 @@ class SymphonyEngine(
             mix.l += leadMix.l + leadDly.readInt(430) * 0.3f
             mix.r += leadMix.r + leadDly.readInt(290) * 0.3f
             bass.render(mix, gBass * 0.7f)
+            drone.render(mix, gDrone * 0.32f)
             pad.render(mix, gPad * 0.5f)
             drums.render(mix, drumsGain * (if (gDrums < 0.02f) 0f else 1f) * (0.4f + 0.6f * gDrums))
             texture.render(mix, p.crackle * gTex, p.rain, 0.8f)
@@ -411,6 +426,9 @@ class SymphonyEngine(
         val score = scorer.state
         if (score.moving) { flowAccum += score.flow.toDouble() * frames; flowSamples += frames }
         if (p.bloom > 0.5f) bloomSamples += frames
+        if (p.rain > 0.5f) rainSamples += frames
+        val r = elapsedSamples > sr * 20 && rainSamples > elapsedSamples * 0.3
+        if (r != rainy) { rainy = r; title = TripTitles.make(roadName, lastSignals.hourOfDay, keyRoot, genre, rainy) }
         // publish at most every ~1024 samples (~21 ms): the UI polls at 25 Hz, and this keeps per-block allocation off the audio thread
         samplesSincePublish += frames
         if (samplesSincePublish >= PUBLISH_INTERVAL) { samplesSincePublish = 0; publishState(p, score) }
@@ -428,6 +446,7 @@ class SymphonyEngine(
         if (gLead > 0.1f) layersActive.add("melody")
         if (p.rain > 0.3f) layersActive.add("rain")
         if (p.crackle > 0.4f) layersActive.add("vinyl")
+        if (gDrone > 0.25f) layersActive.add("drone")
         state = EngineState(
             genre = genre,
             keyLabel = Pitch.name(keyRoot),
@@ -444,7 +463,7 @@ class SymphonyEngine(
             lastEvent = score.lastEvent,
             lastEventAgeSec = score.lastEventAgeSec,
             graced = score.graced,
-            density = p.density,
+            density = densityEff,
             bloom = p.bloom,
             layers = ArrayList(layersActive),
             title = title,
@@ -477,7 +496,7 @@ class SymphonyEngine(
 
 /** Trip title: time of day + road name + key/genre, e.g. "저녁의 올림픽대로 (Bb Lo-fi)". */
 object TripTitles {
-    fun make(roadName: String?, hourOfDay: Int, keyRoot: Int, genre: Genre): String {
+    fun make(roadName: String?, hourOfDay: Int, keyRoot: Int, genre: Genre, rainy: Boolean = false): String {
         val when_ = when (hourOfDay) {
             in 0..4 -> "새벽의"
             in 5..9 -> "아침의"
@@ -486,7 +505,7 @@ object TripTitles {
             else -> "밤의"
         }
         val road = roadName?.takeIf { it.isNotBlank() } ?: "이름 없는 길"
-        return "$when_ $road (${Pitch.name(keyRoot)} ${genre.label})"
+        return "${if (rainy) "비 오는 " else ""}$when_ $road (${Pitch.name(keyRoot)} ${genre.label})"
     }
 
 }

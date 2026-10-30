@@ -174,7 +174,7 @@ private fun EventLine(engine: EngineState?) {
 
 @Composable
 private fun LayerDots(layers: List<String>, accent: Color) {
-    val all = listOf("pad" to "패드", "bass" to "베이스", "keys" to "키", "drums" to "드럼", "hats" to "하이햇", "melody" to "멜로디", "vinyl" to "바이닐", "rain" to "비")
+    val all = listOf("pad" to "패드", "bass" to "베이스", "keys" to "키", "drums" to "드럼", "hats" to "하이햇", "melody" to "멜로디", "vinyl" to "바이닐", "rain" to "비", "drone" to "드론")
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         for ((id, label) in all) {
             val on = layers.contains(id)

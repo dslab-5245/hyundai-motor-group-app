@@ -27,6 +27,7 @@ data class MusicParams(
     val nightTint: Float = 0f,     // 0..1
     val flow: Float = 0.6f,        // echoed for UI / tests
     val pulse: Float = 0f,         // echoed
+    val drone: Float = 0f,         // 0..1 cruise-control drone bed
 )
 
 /**
@@ -83,10 +84,11 @@ class MusicDirector(var genre: Genre) {
         val rainT = if (s.wiper == WiperState.ON) 1f else 0f
         val driveT = when (s.driveMode) { DriveMode.ECO -> 0.3f; DriveMode.NORMAL -> 0.5f; DriveMode.SPORT -> 0.8f }
         val nightT = if (s.hourOfDay < 6 || s.hourOfDay >= 19) 1f else 0f
+        val droneT = if (s.cruise == CruiseState.ACTIVATED) 1f else 0f
 
         if (!initialized) {
             cur = MusicParams(densityT, cutoffT, wobbleT, crackleT, crushT, reverbT, widthT, gainT, richnessT, bloomT, panT, rainT,
-                s.turnSignal != TurnSignal.OFF, driveT, nightT, score.flow, pulse)
+                s.turnSignal != TurnSignal.OFF, driveT, nightT, score.flow, pulse, droneT)
             initialized = true
             return cur
         }
@@ -108,6 +110,7 @@ class MusicDirector(var genre: Genre) {
             nightTint = nightT,
             flow = score.flow,
             pulse = pulse,
+            drone = ease(cur.drone, droneT, dt, 2.0f, 3.0f),
         )
         return cur
     }

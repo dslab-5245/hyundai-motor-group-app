@@ -304,3 +304,31 @@ class Texture(private val sr: Float, seed: Int) {
         out.r += (c * 0.95f + rn * 1.1f + sw + h) * gain
     }
 }
+
+/**
+ * Cruise-control drone: two detuned saws on the chord root (C2..B2) through a slowly breathing lowpass.
+ * A sustained bed under the bass while cruise control is active; fades in and out over about two seconds.
+ */
+class Drone(private val sr: Float) {
+    private val a = Osc(sr); private val b = Osc(sr)
+    private val filt = Svf(sr)
+    private var level = 0f
+    private var hz = 65.4f
+    private var targetHz = 65.4f
+    private var lfoPhase = 0f
+    private val lfoInc = 0.07f / sr
+
+    /** Pitch class 0..11 -> C2..B2. */
+    fun setRoot(pc: Int) { targetHz = midiToHz(36 + ((pc % 12) + 12) % 12) }
+
+    fun render(out: StereoOut, gain: Float) {
+        if (gain < 0.001f && level < 0.001f) return
+        level += (gain - level) * 1e-5f               // ~2 s fade at 48 kHz
+        hz += (targetHz - hz) * 2e-4f                 // glide between chord roots
+        a.frequency = hz * 0.996f; b.frequency = hz * 1.004f
+        lfoPhase += lfoInc; if (lfoPhase >= 1f) lfoPhase -= 1f
+        filt.set(220f + 90f * sin(lfoPhase * 6.2831855f), 0.15f)
+        val v = filt.process((a.saw() + b.saw()) * 0.5f) * level
+        out.l += v * 0.92f; out.r += v * 1.08f
+    }
+}
