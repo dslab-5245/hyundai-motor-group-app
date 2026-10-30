@@ -328,8 +328,12 @@ class SymphonyEngine(
         val score = scorer.state
         if (score.moving) { flowAccum += score.flow.toDouble() * frames; flowSamples += frames }
         if (p.bloom > 0.5f) bloomSamples += frames
-        publishState(p, score)
+        // publish at most every ~1024 samples (~21 ms): the UI polls at 25 Hz, and this keeps per-block allocation off the audio thread
+        samplesSincePublish += frames
+        if (samplesSincePublish >= PUBLISH_INTERVAL) { samplesSincePublish = 0; publishState(p, score) }
     }
+
+    private var samplesSincePublish = PUBLISH_INTERVAL   // first render publishes immediately
 
     private fun publishState(p: MusicParams, score: ScoreState) {
         layersActive.clear()
@@ -394,4 +398,6 @@ object TripTitles {
         val road = roadName?.takeIf { it.isNotBlank() } ?: "이름 없는 길"
         return "$when_ $road (${Pitch.name(keyRoot)} ${genre.label})"
     }
+
+    companion object { private const val PUBLISH_INTERVAL = 1024 }
 }

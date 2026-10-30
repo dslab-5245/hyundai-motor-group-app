@@ -40,7 +40,10 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
     private var vehicle: Vehicle? = null
     private var store: SignalStore? = null
 
-    private val rearSeats = SeatArea(SeatValue.ROW_2_LEFT, SeatValue.ROW_2_CENTER, SeatValue.ROW_2_RIGHT)
+    // One area + listener per rear seat: the SDK reports occupancy per single seat (capabilities return List<SeatArea>),
+    // so a combined multi-seat area may be rejected at registration.
+    private val rearSeatAreas = listOf(SeatValue.ROW_2_LEFT, SeatValue.ROW_2_CENTER, SeatValue.ROW_2_RIGHT).map { SeatArea(it) }
+    private val rearOccupied = BooleanArray(rearSeatAreas.size)
     private val driverSeat = SeatArea(SeatValue.ROW_1_LEFT)
     private val frontWindshield = WindowArea(WindowValue.FRONT_WINDSHIELD)
 
@@ -105,9 +108,17 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
         }
         override fun onFailed(e: Exception) = warn("cruise", e)
     }
-    private val rearOccupancy = object : SeatOccupancyListener {
-        override fun onSeatOccupancyUpdated(occupancy: Boolean?) { occupancy?.let { store?.rearSeatOccupied = it; store?.touchVehicle() } }
-        override fun onFailed(e: Exception) = warn("seatOccupancy", e)
+    private val rearListeners = List(rearSeatAreas.size) { i ->
+        object : SeatOccupancyListener {
+            override fun onSeatOccupancyUpdated(occupancy: Boolean?) {
+                occupancy?.let {
+                    rearOccupied[i] = it
+                    store?.rearSeatOccupied = rearOccupied.any { o -> o }
+                    store?.touchVehicle()
+                }
+            }
+            override fun onFailed(e: Exception) = warn("seatOccupancy[$i]", e)
+        }
     }
     private val driverBelt = object : SeatBeltBuckledStateListener {
         override fun onSeatBeltBuckledStateUpdated(state: Boolean?) { store?.seatBeltFastened = state; store?.touchVehicle() }
@@ -130,7 +141,7 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
         guarded("gear") { v.getGear().registerGearSelection(gear) }
         guarded("driveMode") { v.getDrivingMode().registerDrivingModeState(driveMode) }
         guarded("cruise") { v.getDrivingMode().registerCruiseControlState(cruise) }
-        guarded("seatOccupancy") { v.getSeat().registerSeatOccupancy(rearSeats, rearOccupancy) }
+        rearSeatAreas.forEachIndexed { i, area -> guarded("seatOccupancy[$i]") { v.getSeat().registerSeatOccupancy(area, rearListeners[i]) } }
         guarded("seatBelt") { v.getSeat().registerSeatBeltBuckledState(driverSeat, driverBelt) }
         Log.i(TAG, "Vehicle SDK initialized; listeners registered")
     }
@@ -144,7 +155,7 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
         guarded("gear") { v.getGear().unregisterGearSelection(gear) }
         guarded("driveMode") { v.getDrivingMode().unregisterDrivingModeState(driveMode) }
         guarded("cruise") { v.getDrivingMode().unregisterCruiseControlState(cruise) }
-        guarded("seatOccupancy") { v.getSeat().unregisterSeatOccupancy(rearSeats, rearOccupancy) }
+        rearSeatAreas.forEachIndexed { i, area -> guarded("seatOccupancy[$i]") { v.getSeat().unregisterSeatOccupancy(area, rearListeners[i]) } }
         guarded("seatBelt") { v.getSeat().unregisterSeatBeltBuckledState(driverSeat, driverBelt) }
         guarded("release") { v.release() }
         vehicle = null

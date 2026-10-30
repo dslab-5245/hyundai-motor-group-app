@@ -11,7 +11,6 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Binder
-import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.support.v4.media.MediaBrowserCompat
@@ -21,6 +20,7 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.media.MediaBrowserServiceCompat
 import io.drivesymphony.app.MainActivity
 import io.drivesymphony.app.R
@@ -101,7 +101,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
 
     // remix
     @Volatile private var trackPlayer: LocalTrackPlayer? = null
-    private val trackProcessor by lazy { TrackProcessor(SAMPLE_RATE) }
+    private val trackProcessor = TrackProcessor(SAMPLE_RATE)   // eager: no allocation on the audio thread at the first remix block
     @Volatile private var mode = PlayMode.GENERATIVE
 
     // trip bookkeeping
@@ -187,7 +187,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     fun play() {
         if (_ui.value.playing) return
         if (!requestFocus()) { Log.w(TAG, "audio focus denied"); return }
-        startForeground(NOTIF_ID, buildNotification(), foregroundType())
+        ServiceCompat.startForeground(this, NOTIF_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         output.start()
         startControlLoop()
         session.isActive = true
@@ -207,6 +207,15 @@ class SymphonyService : MediaBrowserServiceCompat() {
     }
 
     fun toggle() = if (_ui.value.playing) pause() else play()
+
+    /** Hard stop: AUDIOFOCUS_LOSS, MediaSession onStop (3-finger gesture) and task removal. */
+    fun stop() {
+        pause()
+        resumeOnGain = false
+        session.isActive = false
+        setPlaybackState(PlaybackStateCompat.STATE_STOPPED)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+    }
 
     fun setGenre(g: Genre) {
         settings.genre = g
@@ -255,13 +264,30 @@ class SymphonyService : MediaBrowserServiceCompat() {
     fun currentSummary(): TripSummary = engine.summary()
 
     // ---------------------------------------------------------------- audio focus
+    // Pleos audio-focus policy (Interaction Matrix v1.0): LOSS -> stop immediately and abandon focus;
+    // LOSS_TRANSIENT (Gleo voice, call) -> stop immediately, resume only on GAIN; CAN_DUCK (navigation prompt) -> app-side attenuation.
+    @Volatile private var resumeOnGain = false
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
-            AudioManager.AUDIOFOCUS_LOSS -> pause()
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> output.duckGain = 0f
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> output.duckGain = 0.25f // navigation prompt: duck, keep playing
-            AudioManager.AUDIOFOCUS_GAIN -> output.duckGain = 1f
+            AudioManager.AUDIOFOCUS_LOSS -> stop()
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> suspendTransient()
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> output.duckGain = 0.25f // about -12 dB; AudioOutput ramps the change
+            AudioManager.AUDIOFOCUS_GAIN -> { output.duckGain = 1f; if (resumeOnGain) resumeFromTransient() }
         }
+    }
+
+    private fun suspendTransient() {
+        if (!_ui.value.playing) return
+        resumeOnGain = true
+        output.stop()
+        setPlaybackState(PlaybackStateCompat.STATE_PAUSED)
+    }
+
+    private fun resumeFromTransient() {
+        resumeOnGain = false
+        if (!_ui.value.playing) return
+        output.start()
+        setPlaybackState(PlaybackStateCompat.STATE_PLAYING)
     }
 
     private fun requestFocus(): Boolean {
@@ -283,11 +309,15 @@ class SymphonyService : MediaBrowserServiceCompat() {
             setCallback(object : MediaSessionCompat.Callback() {
                 override fun onPlay() = play()
                 override fun onPause() = pause()
-                override fun onStop() = pause()
+                override fun onStop() = stop()
                 override fun onSkipToNext() = nextGenre()
                 override fun onSkipToPrevious() { val all = Genre.values(); setGenre(all[(all.indexOf(_ui.value.genre) + all.size - 1) % all.size]) }
                 override fun onPlayFromMediaId(mediaId: String?, extras: Bundle?) {
                     Genre.values().firstOrNull { it.name == mediaId }?.let { setGenre(it) }
+                    play()
+                }
+                override fun onPlayFromSearch(query: String?, extras: Bundle?) {
+                    genreFromText(query)?.let { setGenre(it) }
                     play()
                 }
             })
@@ -301,7 +331,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
         session.setPlaybackState(
             PlaybackStateCompat.Builder()
                 .setActions(PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID)
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID or
+                        PlaybackStateCompat.ACTION_STOP or PlaybackStateCompat.ACTION_PLAY_FROM_SEARCH)
                 .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1f)
                 .build()
         )
@@ -342,8 +373,62 @@ class SymphonyService : MediaBrowserServiceCompat() {
             ACTION_PAUSE -> pause()
             ACTION_TOGGLE -> toggle()
             ACTION_NEXT_GENRE -> nextGenre()
+            GLEO_START, GLEO_SET_GENRE, GLEO_HOW_IS_MY_DRIVING, GLEO_PAUSE -> handleGleoIntent(intent)
         }
+        // Pleos media-app rule: keep the foreground notification current whenever the service is (re)started while playing.
+        if (_ui.value.playing) ServiceCompat.startForeground(this, NOTIF_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         return START_STICKY
+    }
+
+    /** Pleos media-app rule: when the task is swiped away -> stop media, stopSelf, then super. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stop()
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
+    // ---------------------------------------------------------------- Gleo AI (assets/schema.json)
+    /**
+     * Gleo delivers a function call as an Intent whose action is the function name and whose "ACTION_PARAM" extra holds
+     * the JSON arguments (Pleos app-integration guide, radio example). The reply object (functionName/status/message/data)
+     * follows the same guide; its return channel is not documented publicly, so the reply is broadcast on [GLEO_CALLBACK]
+     * and logged until the official channel is confirmed.
+     */
+    private fun handleGleoIntent(intent: Intent) {
+        val param = runCatching { org.json.JSONObject(intent.getStringExtra(GLEO_PARAM_EXTRA) ?: "{}") }.getOrDefault(org.json.JSONObject())
+        val genre = genreFromText(param.optString("genre"))
+        when (intent.action) {
+            GLEO_START -> { genre?.let { setGenre(it) }; play(); gleoReply(GLEO_START, "success", "${_ui.value.genre.label} 연주를 시작했어요") }
+            GLEO_SET_GENRE -> if (genre != null) { setGenre(genre); gleoReply(GLEO_SET_GENRE, "success", "${genre.label}로 바꿨어요") } else gleoReply(GLEO_SET_GENRE, "fail", "장르를 알아듣지 못했어요. 로파이, 재즈, 앰비언트 중에 골라 주세요")
+            GLEO_PAUSE -> { pause(); gleoReply(GLEO_PAUSE, "success", "연주를 멈췄어요") }
+            GLEO_HOW_IS_MY_DRIVING -> {
+                val st = engine.state
+                val ev = st.lastEvent
+                val flowPct = (st.flow * 100).toInt()
+                val data = org.json.JSONObject().put("flow", flowPct).put("lastEvent", ev?.label ?: "").put("streakSec", st.streakSec.toInt())
+                val msg = if (ev != null && ev.isPenalty && st.lastEventAgeSec < 10f) "방금 ${ev.label}이 있었어요. 지금 Flow ${flowPct}점이에요"
+                          else "부드럽게 ${st.streakSec.toInt()}초째, Flow ${flowPct}점이에요"
+                gleoReply(GLEO_HOW_IS_MY_DRIVING, "success", msg, data)
+            }
+        }
+    }
+
+    private fun gleoReply(functionName: String, status: String, message: String, data: org.json.JSONObject? = null) {
+        val json = org.json.JSONObject().put("functionName", functionName).put("status", status).put("message", message)
+        if (data != null) json.put("data", data.toString())
+        Log.i(TAG, "gleo reply: $json")
+        sendBroadcast(Intent(GLEO_CALLBACK).setPackage(packageName).putExtra("callback", json.toString()))
+    }
+
+    private fun genreFromText(text: String?): Genre? {
+        val t = text?.lowercase()?.trim() ?: return null
+        if (t.isEmpty()) return null
+        return when {
+            t.contains("jazz") || t.contains("재즈") -> Genre.JAZZ
+            t.contains("ambient") || t.contains("앰비언트") -> Genre.AMBIENT
+            t.contains("lofi") || t.contains("lo-fi") || t.contains("로파이") -> Genre.LOFI
+            else -> Genre.values().firstOrNull { it.name.equals(t, ignoreCase = true) }
+        }
     }
 
     override fun onDestroy() {
@@ -358,9 +443,6 @@ class SymphonyService : MediaBrowserServiceCompat() {
         session.release()
         super.onDestroy()
     }
-
-    private fun foregroundType(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0
 
     private fun createChannel() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -391,6 +473,13 @@ class SymphonyService : MediaBrowserServiceCompat() {
         const val ACTION_PAUSE = "io.drivesymphony.action.PAUSE"
         const val ACTION_TOGGLE = "io.drivesymphony.action.TOGGLE"
         const val ACTION_NEXT_GENRE = "io.drivesymphony.action.NEXT_GENRE"
+        // Gleo function names == intent actions (assets/schema.json)
+        const val GLEO_START = "startSymphony"
+        const val GLEO_SET_GENRE = "setGenre"
+        const val GLEO_HOW_IS_MY_DRIVING = "howIsMyDriving"
+        const val GLEO_PAUSE = "pauseSymphony"
+        const val GLEO_PARAM_EXTRA = "ACTION_PARAM"
+        const val GLEO_CALLBACK = "io.drivesymphony.GLEO_CALLBACK"
         private const val TAG = "SymphonyService"
     }
 }

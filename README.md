@@ -59,7 +59,9 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 - NaviHelper는 **Pleos Connect 내비 전용**이다(카카오내비 경로는 읽지 못함).
 - 실제 **HUD/클러스터 투사 API는 서드파티에 열려 있지 않다.** "HUD 표시"는 중앙 화면의 글랜스 레이어(Flow 링 + 세 줄)로 구현했고, 주행 중에는 그 화면만 보인다.
 - 리믹스 모드는 **앱이 직접 재생하는 음원**에만 적용된다(스트리밍 앱의 오디오는 DRM·오디오 캡처 제한으로 처리 불가). 
-- TTS/STT/Vehicle Control SDK는 '준비 중'이라 사용하지 않는다. Gleo 연동은 `assets/schema.json` 초안 + 인텐트 필터로 준비돼 있고, 공식 스키마 가이드 검증 후 활성화한다.
+- TTS/STT/Vehicle Control SDK는 '준비 중'이라 사용하지 않는다. Gleo 연동은 공식 라디오 예제의 스키마 형식(`packageName`·`appDescription`·`actionCalls[].function{name,description,parameters,component}`)으로 `assets/schema.json`에 작성했고, 앱은 함수명을 액션으로 하는 인텐트의 `ACTION_PARAM`(JSON) extra를 받아 처리한 뒤 `functionName/status/message/data` 응답을 만든다. 응답 반환 채널은 공개 문서에 없어 브로드캐스트(`io.drivesymphony.GLEO_CALLBACK`)+로그로 두었고, Gleo 심사·활성화는 HMG 측 절차다.
+- Pleos Music/Audio 앱 규정 반영: MediaBrowserService + MediaSession(play/pause/stop/skip/playFromMediaId/playFromSearch), `android:appCategory="audio"`, `androidx.car.app.launchable`, 오디오 포커스 정책(LOSS 즉시 정지·포커스 반납, LOSS_TRANSIENT(Gleo·통화) 즉시 정지 후 GAIN 시 재개, CAN_DUCK 앱 자체 -12 dB 램프 감쇠), 작업 스와이프 시 stop→stopSelf→super, 주행 중 화면은 애니메이션 없이 단계값만 갱신(5점 단위 Flow 링·on/off 할로).
+- 주행 중 비내비 앱 CPU 예산(5% 미만)은 에뮬레이터/실차에서 측정해야 한다. 합성 부하가 크면 `SymphonyEngine`의 리버브·오버샘플링을 낮추는 라이트 프로파일을 추가한다(미구현).
 
 ## 라이선스
 

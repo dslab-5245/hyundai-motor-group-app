@@ -34,7 +34,7 @@ class LocalTrackPlayer(private val context: Context, private val uri: Uri, priva
     fun stop() {
         running = false
         thread?.interrupt()
-        thread?.join(800)
+        thread?.join(300)
         thread = null
     }
 
@@ -54,16 +54,36 @@ class LocalTrackPlayer(private val context: Context, private val uri: Uri, priva
         }
     }
 
-    private fun push(l: Float, r: Float) {
-        synchronized(lock) {
-            while (running && writePos - readPos >= ringFrames - 1) {
-                try { lock.wait(20) } catch (_: InterruptedException) { return }
+    // Decoder thread collects resampled frames in a local batch and pushes them into the ring in bulk,
+    // so the lock is taken once per chunk instead of once per frame (keeps the audio thread from contending).
+    private val batch = FloatArray(BATCH_FRAMES * 2)
+    private var batchFrames = 0
+
+    private fun enqueue(l: Float, r: Float) {
+        batch[batchFrames * 2] = l; batch[batchFrames * 2 + 1] = r
+        batchFrames++
+        if (batchFrames == BATCH_FRAMES) flushBatch()
+    }
+
+    private fun flushBatch() {
+        var off = 0
+        while (off < batchFrames && running) {
+            synchronized(lock) {
+                val free = (ringFrames - 1 - (writePos - readPos)).toInt()
+                if (free <= 0) {
+                    try { lock.wait(20) } catch (_: InterruptedException) { running = false }
+                } else {
+                    val n = minOf(free, batchFrames - off)
+                    for (i in 0 until n) {
+                        val idx = ((writePos + i) % ringFrames).toInt() * 2
+                        ring[idx] = batch[(off + i) * 2]; ring[idx + 1] = batch[(off + i) * 2 + 1]
+                    }
+                    writePos += n
+                    off += n
+                }
             }
-            if (!running) return
-            val idx = (writePos % ringFrames).toInt() * 2
-            ring[idx] = l; ring[idx + 1] = r
-            writePos++
         }
+        batchFrames = 0
     }
 
     private fun decodeLoop() {
@@ -80,7 +100,11 @@ class LocalTrackPlayer(private val context: Context, private val uri: Uri, priva
                     if (mime.startsWith("audio/")) { trackIndex = i; format = f; break }
                 }
                 if (trackIndex < 0 || format == null) { error = "no audio track"; running = false; return }
-                format.getString(MediaFormat.KEY_TITLE)?.let { title = it }
+                runCatching {
+                    val r = android.media.MediaMetadataRetriever()
+                    try { r.setDataSource(context, uri); r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)?.let { title = it } }
+                    finally { r.release() }   // not AutoCloseable on API 28, so no use {}
+                }
                 extractor.selectTrack(trackIndex)
                 val mime = format.getString(MediaFormat.KEY_MIME)!!
                 codec = MediaCodec.createDecoderByType(mime)
@@ -128,12 +152,13 @@ class LocalTrackPlayer(private val context: Context, private val uri: Uri, priva
                             resampleAcc += 1.0
                             while (resampleAcc >= step) {
                                 val t = ((resampleAcc - step) / step).toFloat().coerceIn(0f, 1f)
-                                push(lastL + (l - lastL) * (1f - t), lastR + (r - lastR) * (1f - t))
+                                enqueue(lastL + (l - lastL) * (1f - t), lastR + (r - lastR) * (1f - t))
                                 resampleAcc -= step
                             }
                             lastL = l; lastR = r
                         }
                         codec.releaseOutputBuffer(outIdx, false)
+                        flushBatch()
                     }
                 }
             } catch (e: Exception) {
@@ -147,5 +172,5 @@ class LocalTrackPlayer(private val context: Context, private val uri: Uri, priva
         }
     }
 
-    companion object { private const val TAG = "LocalTrackPlayer" }
+    companion object { private const val TAG = "LocalTrackPlayer"; private const val BATCH_FRAMES = 4096 }
 }

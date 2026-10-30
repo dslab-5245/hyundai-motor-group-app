@@ -1,10 +1,13 @@
 package io.drivesymphony.app
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
@@ -18,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,13 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import io.drivesymphony.app.audio.SymphonyService
 import io.drivesymphony.app.ui.ComposerScreen
 import io.drivesymphony.app.ui.DriveSymphonyTheme
 import io.drivesymphony.app.ui.DsColors
 import io.drivesymphony.app.ui.FlowScreen
 import io.drivesymphony.engine.TripSummary
-import io.drivesymphony.engine.director.Gear
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
@@ -52,12 +54,18 @@ class MainActivity : ComponentActivity() {
     private val pickTrack = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { serviceFlow.value?.setRemixTrack(it) }
     }
+    private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val intent = Intent(this, SymphonyService::class.java)
-        startService(intent)
-        bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        val svc = Intent(this, SymphonyService::class.java)
+        startService(svc)   // started + bound: the service outlives the activity while playing (Pleos media-app lifecycle rule)
+        bindService(svc, connection, Context.BIND_AUTO_CREATE)
+        forwardGleo(intent)
+        // API 33+: the foreground media notification is only shown once the user grants POST_NOTIFICATIONS.
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         setContent {
             DriveSymphonyTheme {
                 val service by serviceFlow.collectAsState()
@@ -66,9 +74,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        forwardGleo(intent)
+    }
+
+    /** Gleo function calls may arrive at the activity (component "activity"); hand them to the service. */
+    private fun forwardGleo(intent: Intent?) {
+        val action = intent?.action ?: return
+        if (action in GLEO_ACTIONS) startService(Intent(this, SymphonyService::class.java).setAction(action).putExtras(intent))
+    }
+
     override fun onDestroy() {
         runCatching { unbindService(connection) }
         super.onDestroy()
+    }
+
+    companion object {
+        private val GLEO_ACTIONS = setOf(SymphonyService.GLEO_START, SymphonyService.GLEO_SET_GENRE, SymphonyService.GLEO_HOW_IS_MY_DRIVING, SymphonyService.GLEO_PAUSE)
     }
 
     private fun share(summary: TripSummary) {
@@ -90,8 +114,7 @@ private fun Root(service: SymphonyService?, onPickTrack: () -> Unit, onShare: (T
     }
     val engine by service.engineState.collectAsState()
     val ui by service.ui.collectAsState()
-    // Driving gate: UX restrictions from the car, or (if the car library is missing) gear != PARK while moving.
-    val parkedByGear = engine?.moving == false
+    // Driving gate: UX restrictions from the car, or (if the car library is missing) the engine's moving flag (gear D / speed).
     val driving = ui.restricted || (engine?.moving == true)
     var tab by remember { mutableStateOf(0) }
 
@@ -118,5 +141,4 @@ private fun Root(service: SymphonyService?, onPickTrack: () -> Unit, onShare: (T
             )
         }
     }
-    @Suppress("UNUSED_VARIABLE") val unused = parkedByGear || Gear.PARK == Gear.PARK
 }

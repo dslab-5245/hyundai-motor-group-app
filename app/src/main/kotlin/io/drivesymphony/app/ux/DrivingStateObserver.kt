@@ -18,9 +18,7 @@ class DrivingStateObserver(private val context: Context) {
     val restricted: StateFlow<Boolean> = _restricted
     private var car: Car? = null
     private var manager: CarUxRestrictionsManager? = null
-    private val listener = CarUxRestrictionsManager.OnUxRestrictionsChangedListener { r: CarUxRestrictions ->
-        _restricted.value = r.isRequiresDistractionOptimization
-    }
+    private var listener: CarUxRestrictionsManager.OnUxRestrictionsChangedListener? = null
 
     fun start() {
         try {
@@ -28,7 +26,12 @@ class DrivingStateObserver(private val context: Context) {
             car = c
             val m = c.getCarManager(Car.CAR_UX_RESTRICTION_SERVICE) as? CarUxRestrictionsManager ?: return
             manager = m
-            m.registerListener(listener)
+            // created here (not as a field initialiser) so a device without android.car fails inside this try/catch
+            val l = CarUxRestrictionsManager.OnUxRestrictionsChangedListener { r: CarUxRestrictions ->
+                _restricted.value = r.isRequiresDistractionOptimization
+            }
+            listener = l
+            m.registerListener(l)
             m.currentCarUxRestrictions?.let { _restricted.value = it.isRequiresDistractionOptimization }
             Log.i(TAG, "CarUxRestrictions connected, restricted=${_restricted.value}")
         } catch (t: Throwable) {

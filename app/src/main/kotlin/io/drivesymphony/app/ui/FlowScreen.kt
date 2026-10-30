@@ -1,7 +1,5 @@
 package io.drivesymphony.app.ui
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +18,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -36,21 +33,20 @@ import io.drivesymphony.app.audio.ServiceUiState
 import io.drivesymphony.engine.EngineState
 import io.drivesymphony.engine.director.DriveEvent
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
- * HUD-style glance screen shown while driving. Deliberately static: one ring, three lines of text,
- * one large play/pause target (>= 76 dp), no scrolling, no moving graphics faster than ~0.5 Hz.
- * This is what keeps the app inside the "Music/Audio in-motion" review bar.
+ * HUD-style glance screen shown while driving. Deliberately static (Pleos UI guide: no videos, animated images or
+ * auto-scrolling text while driving; Music/Audio apps may show album-art-level visuals): one ring that only redraws on a
+ * discrete step change, three lines of text, one large play/pause target (>= 76 dp), no tweens, no scrolling.
  */
 @Composable
 fun FlowScreen(engine: EngineState?, ui: ServiceUiState, onToggle: () -> Unit, modifier: Modifier = Modifier) {
     val accent = DsColors.accent(ui.genre)
-    val flowTarget = engine?.flow ?: 0.6f
-    val flow by animateFloatAsState(targetValue = flowTarget, animationSpec = tween(500), label = "flow")
-    val pulseTarget = engine?.pulse ?: 0f
-    val pulse by animateFloatAsState(targetValue = pulseTarget, animationSpec = tween(300), label = "pulse")
-    // slow breathing synced to the bar (one cycle per bar, ~3 s): 0.82..1.0
-    val breath = engine?.let { 0.91f + 0.09f * kotlin.math.cos((it.beatInBar / 4f) * 2f * Math.PI.toFloat()) } ?: 1f
+    // Quantised, non-animated values: flow in 5-point steps, the penalty halo as on/off, no breathing.
+    val flow = ((engine?.flow ?: 0.6f) * 20f).roundToInt() / 20f
+    val pulse = if ((engine?.pulse ?: 0f) > 0.25f) 1f else 0f
+    val breath = 1f
 
     Row(
         modifier = modifier
