@@ -1,6 +1,6 @@
 # 드라이브 심포니 개인정보처리방침 / Drive Symphony Privacy Policy
 
-최종 수정일: 2026-10-31 · 적용 앱: 드라이브 심포니 (패키지 `io.drivesymphony.app`) · 문의: hjkim00113@gmail.com
+최종 수정일: 2026-10-31 · 적용 앱: 드라이브 심포니 (패키지 `io.drivesymphony.app`) · 문의: ⟦문의용 이메일: 블라인드 심사용 별도 계정⟧
 
 ## 1. 요약
 
@@ -30,7 +30,7 @@
 
 - 여정 기록 삭제: 차량 설정 → 앱 → 드라이브 심포니 → 저장공간 → 데이터 삭제(또는 앱 삭제).
 - 공유한 이미지 카드는 사용자가 선택한 앱(메신저 등)의 정책을 따릅니다.
-- 문의: hjkim00113@gmail.com
+- 문의: ⟦문의용 이메일: 블라인드 심사용 별도 계정⟧
 
 ## 5. 아동
 
@@ -44,4 +44,4 @@
 
 ## English summary
 
-Drive Symphony (package `io.drivesymphony.app`) **does not collect or transmit personal data**. The app has no INTERNET permission. Vehicle signals (steering, brake, turn signal, wiper, gear, drive mode, cruise, seat occupancy / belt) and navigation data (road name, speed limit, distance to next turn, caution ahead, position-derived speed) are used only to shape the music in real time and are not stored. The only persisted data is a "journey song" summary (duration, average flow score, longest smooth stretch, bar count, generated title with road name, chosen genre), kept in the app's private storage for the last 10 trips and removed when you clear app data or uninstall. Sharing an image card happens only when you tap Share, through the Android share sheet, to the app you choose. Local audio files chosen for "variation" mode are played from your device and never copied. Gleo voice commands reach the app only as a function name and parameters and are not stored. No third-party, analytics or advertising SDKs. Contact: hjkim00113@gmail.com
+Drive Symphony (package `io.drivesymphony.app`) **does not collect or transmit personal data**. The app has no INTERNET permission. Vehicle signals (steering, brake, turn signal, wiper, gear, drive mode, cruise, seat occupancy / belt) and navigation data (road name, speed limit, distance to next turn, caution ahead, position-derived speed) are used only to shape the music in real time and are not stored. The only persisted data is a "journey song" summary (duration, average flow score, longest smooth stretch, bar count, generated title with road name, chosen genre), kept in the app's private storage for the last 10 trips and removed when you clear app data or uninstall. Sharing an image card happens only when you tap Share, through the Android share sheet, to the app you choose. Local audio files chosen for "variation" mode are played from your device and never copied. Gleo voice commands reach the app only as a function name and parameters and are not stored. No third-party, analytics or advertising SDKs. Contact: ⟦문의용 이메일: 블라인드 심사용 별도 계정⟧

@@ -71,9 +71,10 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 
 - `docs/privacy-policy.md` — 개인정보처리방침(한/영). 앱에 INTERNET 권한이 없고 여정 요약만 로컬에 남는다는 사실 기반. 제출 시 공개 URL(예: GitHub Pages)로 올려 링크를 적는다.
 - `store/icon-512.png` — 스토어 아이콘 512×512(런처 아이콘과 같은 디자인, `python -I scripts/make_store_assets.py`로 재생성).
+- `store/listing.md` — 앱마켓 등록 텍스트: 한 줄 소개·설명(한/영)·주행 중 UX 선언·권한 사용 사유·로컬 저장 데이터·Gleo 명령·심사자 안내(차량 없이 확인하는 순서)·제약·오픈소스 고지. 블라인드 심사 규정에 맞춰 개발자 정보 없음.
 - `previews/lofi_ab_clean.wav`·`lofi_ab_event.wav` — 같은 시드·같은 주행의 A/B 음원(30초). 20.0초까지 샘플 단위로 동일하고 20.3초의 브레이크 찍기 뒤 120 ms 안에 갈라진다(`gradlew :engine:renderPreviews`).
 - 스크린샷(2560×1380 등)은 에뮬레이터 스모크 스크립트(`scripts/emulator-smoke.ps1`)가 `build/smoke/<ts>/screen_*.png`로 저장한다.
 
 ## 라이선스
 
-소스: MIT. 모든 악기 음은 코드로 합성되며 외부 샘플·저작권 음원을 포함하지 않는다.
+소스: MIT(`LICENSE`). 모든 악기 음은 코드로 합성되며 외부 샘플·저작권 음원을 포함하지 않는다. 커밋 작성자는 블라인드 심사를 위해 `Drive Symphony <dev@drivesymphony.local>`로 통일되어 있다.
