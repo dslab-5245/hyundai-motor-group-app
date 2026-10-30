@@ -38,6 +38,7 @@ import io.drivesymphony.engine.director.Gear
 import io.drivesymphony.engine.remix.TrackProcessor
 import io.drivesymphony.engine.scenario.Scenarios
 import io.drivesymphony.engine.theory.Genre
+import io.drivesymphony.engine.theory.GenreParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -420,16 +421,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         sendBroadcast(Intent(GLEO_CALLBACK).setPackage(packageName).putExtra("callback", json.toString()))
     }
 
-    private fun genreFromText(text: String?): Genre? {
-        val t = text?.lowercase()?.trim() ?: return null
-        if (t.isEmpty()) return null
-        return when {
-            t.contains("jazz") || t.contains("재즈") -> Genre.JAZZ
-            t.contains("ambient") || t.contains("앰비언트") -> Genre.AMBIENT
-            t.contains("lofi") || t.contains("lo-fi") || t.contains("로파이") -> Genre.LOFI
-            else -> Genre.values().firstOrNull { it.name.equals(t, ignoreCase = true) }
-        }
-    }
+    private fun genreFromText(text: String?): Genre? = GenreParser.parse(text)
 
     override fun onDestroy() {
         pause()

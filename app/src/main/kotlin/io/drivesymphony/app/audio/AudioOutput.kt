@@ -59,6 +59,12 @@ class AudioOutput(
                 .build()
             track = t
             t.play()
+            // click-free start: ~200 ms of pre-roll silence (same technique Pleos recommends for voice prompts),
+            // then the block gain ramps up from zero (~40 ms) instead of starting at full level.
+            java.util.Arrays.fill(block, 0f)
+            var preRoll = sampleRate / 5
+            while (running && preRoll > 0) { t.write(block, 0, block.size, AudioTrack.WRITE_BLOCKING); preRoll -= blockFrames }
+            smoothGain = 0f
             while (running) {
                 renderBlock(block, blockFrames)
                 smoothGain += (duckGain - smoothGain) * 0.15f

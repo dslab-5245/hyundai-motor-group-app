@@ -4,11 +4,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.drivesymphony.app.audio.ServiceUiState
@@ -48,57 +51,79 @@ fun FlowScreen(engine: EngineState?, ui: ServiceUiState, onToggle: () -> Unit, m
     val pulse = if ((engine?.pulse ?: 0f) > 0.25f) 1f else 0f
     val breath = 1f
 
-    Row(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(Brush.verticalGradient(listOf(DsColors.bg, Color(0xFF0E141C))))
             .padding(horizontal = 40.dp, vertical = 28.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // ---- ring --------------------------------------------------------------------------------
-        Box(modifier = Modifier.size(300.dp), contentAlignment = Alignment.Center) {
-            FlowRing(flow = flow, pulse = pulse, accent = accent, breath = breath, modifier = Modifier.fillMaxSize())
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "${(flow * 100).toInt()}", fontSize = 84.sp, fontWeight = FontWeight.Light, color = DsColors.text, lineHeight = 88.sp)
-                Text(text = "FLOW", fontSize = 20.sp, color = DsColors.muted, letterSpacing = 4.sp)
+        // Pleos screen model: an app gets one (narrow, tall) window in portrait or two windows side by side in landscape.
+        if (maxWidth < 980.dp) {
+            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                FlowRingBlock(flow, pulse, accent, breath, size = 240.dp)
+                Spacer(Modifier.height(24.dp))
+                FlowLines(engine, ui, accent, Modifier.weight(1f).fillMaxWidth())
+                Spacer(Modifier.height(16.dp))
+                PlayButton(ui, accent, onToggle, Modifier.size(120.dp))
+            }
+        } else {
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                FlowRingBlock(flow, pulse, accent, breath, size = 300.dp)
+                Spacer(Modifier.width(40.dp))
+                FlowLines(engine, ui, accent, Modifier.weight(1f).fillMaxHeight())
+                Spacer(Modifier.width(24.dp))
+                PlayButton(ui, accent, onToggle, Modifier.size(132.dp))
             }
         }
+    }
+}
 
-        Spacer(Modifier.width(40.dp))
-
-        // ---- three lines -------------------------------------------------------------------------
-        Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-            Text(text = engine?.title ?: "준비 중", fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = DsColors.text, maxLines = 1, lineHeight = 40.sp)
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Chip(text = ui.genre.label, color = accent)
-                Spacer(Modifier.width(12.dp))
-                Text(text = engine?.let { "${it.chordLabel}  ·  ${it.bpm.toInt()} BPM" } ?: "", fontSize = 26.sp, color = DsColors.muted)
-            }
-            Spacer(Modifier.height(18.dp))
-            EventLine(engine)
-            Spacer(Modifier.height(18.dp))
-            LayerDots(engine?.layers ?: emptyList(), accent)
-            if (ui.demo) {
-                Spacer(Modifier.height(14.dp))
-                Chip(text = "DEMO · 시나리오 재생 중", color = DsColors.warn)
-            } else if (!ui.vehicleLive) {
-                Spacer(Modifier.height(14.dp))
-                Chip(text = "차량 신호 대기 중", color = DsColors.muted)
-            }
+@Composable
+private fun FlowRingBlock(flow: Float, pulse: Float, accent: Color, breath: Float, size: Dp) {
+    Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
+        FlowRing(flow = flow, pulse = pulse, accent = accent, breath = breath, modifier = Modifier.fillMaxSize())
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "${(flow * 100).toInt()}", fontSize = 84.sp, fontWeight = FontWeight.Light, color = DsColors.text, lineHeight = 88.sp)
+            Text(text = "FLOW", fontSize = 20.sp, color = DsColors.muted, letterSpacing = 4.sp)
         }
+    }
+}
 
-        Spacer(Modifier.width(24.dp))
-
-        // ---- single large control ----------------------------------------------------------------
-        Button(
-            onClick = onToggle,
-            modifier = Modifier.size(132.dp),
-            shape = RoundedCornerShape(32.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = if (ui.playing) DsColors.surfaceHi else accent, contentColor = if (ui.playing) DsColors.text else DsColors.bg),
-        ) {
-            Text(text = if (ui.playing) "❚❚" else "▶", fontSize = 40.sp)
+/** Three lines + layer dots: title, genre/chord/BPM, current event. Nothing scrolls, nothing animates. */
+@Composable
+private fun FlowLines(engine: EngineState?, ui: ServiceUiState, accent: Color, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.Center) {
+        Text(text = engine?.title ?: "준비 중", fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = DsColors.text, maxLines = 1, lineHeight = 40.sp)
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Chip(text = ui.genre.label, color = accent)
+            Spacer(Modifier.width(12.dp))
+            Text(text = engine?.let { "${it.chordLabel}  ·  ${it.bpm.toInt()} BPM" } ?: "", fontSize = 26.sp, color = DsColors.muted)
         }
+        Spacer(Modifier.height(18.dp))
+        EventLine(engine)
+        Spacer(Modifier.height(18.dp))
+        LayerDots(engine?.layers ?: emptyList(), accent)
+        if (ui.demo) {
+            Spacer(Modifier.height(14.dp))
+            Chip(text = "DEMO · 시나리오 재생 중", color = DsColors.warn)
+        } else if (!ui.vehicleLive) {
+            Spacer(Modifier.height(14.dp))
+            Chip(text = "차량 신호 대기 중", color = DsColors.muted)
+        }
+    }
+}
+
+/** The single large control on the glance screen (>= 76 dp touch target). */
+@Composable
+private fun PlayButton(ui: ServiceUiState, accent: Color, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    Button(
+        onClick = onToggle,
+        modifier = modifier,
+        shape = RoundedCornerShape(32.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = if (ui.playing) DsColors.surfaceHi else accent, contentColor = if (ui.playing) DsColors.text else DsColors.bg),
+    ) {
+        Text(text = if (ui.playing) "❚❚" else "▶", fontSize = 40.sp)
     }
 }
 

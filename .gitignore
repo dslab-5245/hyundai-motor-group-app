@@ -13,3 +13,4 @@ previews/*.wav
 # keystores
 *.jks
 *.keystore
+local.properties.pending
