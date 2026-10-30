@@ -29,14 +29,15 @@ drive-symphony/
 3. **음악화** — `MusicDirector`가 flow를 밀도(레이어 수)·컷오프·테이프 워블·바이닐·크러시·리버브·스테레오 폭·게인·화성 확장·멜로디(bloom)로 매핑한다. 급조작 펄스는 150 ms 안에 들리고, 회복은 천천히.
 4. **연주** — `Arranger`가 마디마다 장르 규칙(로파이 스윙 58%, 재즈 트리오 워킹베이스·라이드, 앰비언트 패드·아르페지오)으로 이벤트를 만들고 `SymphonyEngine`이 샘플 단위로 합성한다. 와이퍼=비 텍스처·셰이커, 깜빡이=비트 위 림 클릭, 조향=패닝, 주행모드=에너지, 크루즈=드론.
    **형식**: 8마디 섹션 A-A-B-A(같은 키의 두 진행, 재즈 B는 트라이톤 대리), 섹션 끝 필(로파이 스네어 빌드·재즈 브러시 드래그·앰비언트 스웰), 첫 2마디 인트로(드럼 없음), 8마디마다 4음 모티프를 만들어 앞 4마디는 제시·뒤 4마디는 응답(call & response). **스테레오**: EP 피치 패닝, 드러머 시점 햇/라이드 패닝, 멜로디 마이크로 더블러 — 안전 주행 시 좌우 상관 0.71~0.87(이전 0.94~0.98), RMS 약 -14 dBFS.
-5. **여정의 곡** — 주차(P) 시 평균 flow·최장 부드러운 구간·멜로디가 열린 시간·마디 수를 요약하고, 도로명+시간대로 제목을 붙인다("저녁의 강변북로 (Bb Lo-fi)"). 종료 시 토닉으로 해결하는 **카덴차 1마디** 후 새 곡이 시작된다. **이 길의 테마**: 같은 도로명은 항상 같은 키·진행·모티프 시드를 받아 "강변북로의 테마"가 생기고, 최근 10회의 여정은 작곡실 "여정의 곡 기록"에 남는다.
+5. **기존 음악 변주하기** — 앱이 직접 재생하는 로컬 음원에 같은 flow 규칙을 건다(`TrackProcessor`: 로우패스·테이프 워블·크러시·리버브·M/S 폭·게인·리미터). 수치 검증(`TrackProcessorTest`): 안전 주행 시 원곡 대비 +0.15 dB·고역 유지 101%·좌우 상관 동일(사실상 무가공), 거친 주행 시 -5.8 dB·고역 5%·폭 축소(상관 0.72→0.81), 상태 전환 시 클릭 없음, 클리핑 없음.
+6. **여정의 곡** — 주차(P) 시 평균 flow·최장 부드러운 구간·멜로디가 열린 시간·마디 수를 요약하고, 도로명+시간대로 제목을 붙인다("저녁의 강변북로 (Bb Lo-fi)"). 종료 시 토닉으로 해결하는 **카덴차 1마디** 후 새 곡이 시작된다. **이 길의 테마**: 같은 도로명은 항상 같은 키·진행·모티프 시드를 받아 "강변북로의 테마"가 생기고, 최근 10회의 여정은 작곡실 "여정의 곡 기록"에 남는다.
 
 ## 빌드
 
 요구: JDK 17, Android Studio(Android SDK 35, Pleos Connect 에뮬레이터 v2.1.0). Android SDK가 없으면 `:app`은 자동으로 제외되고 엔진만 빌드된다.
 
 ```bash
-# 엔진 단위 테스트 (23개) + 프리뷰 WAV 9개 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
+# 엔진 단위 테스트 (26개) + 프리뷰 WAV 9개 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
 ./gradlew :engine:test :engine:renderPreviews
 
 # Android 앱 (Android Studio 설치 후)
@@ -63,6 +64,12 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 - TTS/STT/Vehicle Control SDK는 '준비 중'이라 사용하지 않는다. Gleo 연동은 공식 라디오 예제의 스키마 형식(`packageName`·`appDescription`·`actionCalls[].function{name,description,parameters,component}`)으로 `assets/schema.json`에 작성했고, 앱은 함수명을 액션으로 하는 인텐트의 `ACTION_PARAM`(JSON) extra를 받아 처리한 뒤 `functionName/status/message/data` 응답을 만든다. 응답 반환 채널은 공개 문서에 없어 브로드캐스트(`io.drivesymphony.GLEO_CALLBACK`)+로그로 두었고, Gleo 심사·활성화는 HMG 측 절차다.
 - Pleos Music/Audio 앱 규정 반영: MediaBrowserService + MediaSession(play/pause/stop/skip/playFromMediaId/playFromSearch), `android:appCategory="audio"`, `androidx.car.app.launchable`, 오디오 포커스 정책(LOSS 즉시 정지·포커스 반납, LOSS_TRANSIENT(Gleo·통화) 즉시 정지 후 GAIN 시 재개, CAN_DUCK 앱 자체 -12 dB 램프 감쇠), 작업 스와이프 시 stop→stopSelf→super, 주행 중 화면은 애니메이션 없이 단계값만 갱신(5점 단위 Flow 링·on/off 할로).
 - 주행 중 비내비 앱 CPU 예산(5% 미만)은 에뮬레이터/실차에서 측정해야 한다. 합성 부하가 크면 `SymphonyEngine`의 리버브·오버샘플링을 낮추는 라이트 프로파일을 추가한다(미구현).
+
+## 제출 자료
+
+- `docs/privacy-policy.md` — 개인정보처리방침(한/영). 앱에 INTERNET 권한이 없고 여정 요약만 로컬에 남는다는 사실 기반. 제출 시 공개 URL(예: GitHub Pages)로 올려 링크를 적는다.
+- `store/icon-512.png` — 스토어 아이콘 512×512(런처 아이콘과 같은 디자인, `python -I scripts/make_store_assets.py`로 재생성).
+- 스크린샷(2560×1380 등)은 에뮬레이터 스모크 스크립트(`scripts/emulator-smoke.ps1`)가 `build/smoke/<ts>/screen_*.png`로 저장한다.
 
 ## 라이선스
 
