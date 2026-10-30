@@ -1,0 +1,57 @@
+{
+  "_comment": "Gleo AI App Schema (DRAFT). Pleos docs: an app ships assets/schema.json + matching intent-filters; Gleo scans it at boot and after install, reviews it, then activates the integration. Field names follow the function-calling style shown in the Gleo Interface core-concepts page and must be validated against the official 'App Schema Writing Guide' before submission.",
+  "app": {
+    "packageName": "io.drivesymphony.app",
+    "name": "Drive Symphony",
+    "description": "주행 신호로 로파이·재즈·앰비언트 음악을 실시간 생성하는 앱. 부드럽게 운전할수록 음악이 풍성해진다."
+  },
+  "functions": [
+    {
+      "name": "START_SYMPHONY",
+      "action": "io.drivesymphony.action.START_SYMPHONY",
+      "description": "드라이브 심포니 연주를 시작한다. 장르를 함께 지정할 수 있다.",
+      "utterances": ["드라이브 심포니 틀어줘", "주행 음악 시작해", "로파이로 연주 시작해", "재즈 틀어줘 드라이브 심포니"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "genre": { "type": "string", "enum": ["LOFI", "JAZZ", "AMBIENT"], "description": "음악 장르" }
+        }
+      }
+    },
+    {
+      "name": "SET_GENRE",
+      "action": "io.drivesymphony.action.SET_GENRE",
+      "description": "연주 중인 장르를 바꾼다. 다음 마디에서 자연스럽게 전환된다.",
+      "utterances": ["앰비언트로 바꿔줘", "재즈로 바꿔", "장르 바꿔줘"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "genre": { "type": "string", "enum": ["LOFI", "JAZZ", "AMBIENT"] }
+        },
+        "required": ["genre"]
+      }
+    },
+    {
+      "name": "HOW_IS_MY_DRIVING",
+      "action": "io.drivesymphony.action.HOW_IS_MY_DRIVING",
+      "description": "현재 Flow 점수와 가장 최근 이벤트(급조향·깜빡이 등)를 읽어 준다.",
+      "utterances": ["내 운전 어때", "지금 플로우 점수 알려줘", "음악 왜 가라앉았어"],
+      "parameters": { "type": "object", "properties": {} },
+      "response": {
+        "type": "object",
+        "properties": {
+          "flow": { "type": "integer", "description": "0-100" },
+          "lastEvent": { "type": "string" },
+          "streakSec": { "type": "integer" }
+        }
+      }
+    },
+    {
+      "name": "PAUSE_SYMPHONY",
+      "action": "io.drivesymphony.action.PAUSE",
+      "description": "연주를 멈춘다.",
+      "utterances": ["드라이브 심포니 꺼줘", "음악 멈춰"],
+      "parameters": { "type": "object", "properties": {} }
+    }
+  ]
+}

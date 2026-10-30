@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Drive Symphony</string>
+    <string name="app_description">주행이 연주가 되는 차. 부드럽게 달릴수록 음악이 풍성해집니다.</string>
+    <string name="genre_subtitle">주행으로 생성되는 사운드트랙</string>
+    <string name="action_toggle">재생/일시정지</string>
+    <string name="notification_channel">Drive Symphony 재생</string>
+</resources>

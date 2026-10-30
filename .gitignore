@@ -1,0 +1,15 @@
+# Gradle / build
+.gradle/
+build/
+**/build/
+local.properties
+.kotlin/
+# IDE
+.idea/
+*.iml
+.DS_Store
+# rendered previews are reproducible via `gradlew :engine:renderPreviews`
+previews/*.wav
+# keystores
+*.jks
+*.keystore

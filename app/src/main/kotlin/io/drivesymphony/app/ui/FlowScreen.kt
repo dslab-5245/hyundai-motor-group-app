@@ -1,0 +1,171 @@
+package io.drivesymphony.app.ui
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import io.drivesymphony.app.audio.ServiceUiState
+import io.drivesymphony.engine.EngineState
+import io.drivesymphony.engine.director.DriveEvent
+import kotlin.math.max
+
+/**
+ * HUD-style glance screen shown while driving. Deliberately static: one ring, three lines of text,
+ * one large play/pause target (>= 76 dp), no scrolling, no moving graphics faster than ~0.5 Hz.
+ * This is what keeps the app inside the "Music/Audio in-motion" review bar.
+ */
+@Composable
+fun FlowScreen(engine: EngineState?, ui: ServiceUiState, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    val accent = DsColors.accent(ui.genre)
+    val flowTarget = engine?.flow ?: 0.6f
+    val flow by animateFloatAsState(targetValue = flowTarget, animationSpec = tween(500), label = "flow")
+    val pulseTarget = engine?.pulse ?: 0f
+    val pulse by animateFloatAsState(targetValue = pulseTarget, animationSpec = tween(300), label = "pulse")
+    // slow breathing synced to the bar (one cycle per bar, ~3 s): 0.82..1.0
+    val breath = engine?.let { 0.91f + 0.09f * kotlin.math.cos((it.beatInBar / 4f) * 2f * Math.PI.toFloat()) } ?: 1f
+
+    Row(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(DsColors.bg, Color(0xFF0E141C))))
+            .padding(horizontal = 40.dp, vertical = 28.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // ---- ring --------------------------------------------------------------------------------
+        Box(modifier = Modifier.size(300.dp), contentAlignment = Alignment.Center) {
+            FlowRing(flow = flow, pulse = pulse, accent = accent, breath = breath, modifier = Modifier.fillMaxSize())
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "${(flow * 100).toInt()}", fontSize = 84.sp, fontWeight = FontWeight.Light, color = DsColors.text, lineHeight = 88.sp)
+                Text(text = "FLOW", fontSize = 20.sp, color = DsColors.muted, letterSpacing = 4.sp)
+            }
+        }
+
+        Spacer(Modifier.width(40.dp))
+
+        // ---- three lines -------------------------------------------------------------------------
+        Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+            Text(text = engine?.title ?: "준비 중", fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = DsColors.text, maxLines = 1, lineHeight = 40.sp)
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Chip(text = ui.genre.label, color = accent)
+                Spacer(Modifier.width(12.dp))
+                Text(text = engine?.let { "${it.chordLabel}  ·  ${it.bpm.toInt()} BPM" } ?: "", fontSize = 26.sp, color = DsColors.muted)
+            }
+            Spacer(Modifier.height(18.dp))
+            EventLine(engine)
+            Spacer(Modifier.height(18.dp))
+            LayerDots(engine?.layers ?: emptyList(), accent)
+            if (ui.demo) {
+                Spacer(Modifier.height(14.dp))
+                Chip(text = "DEMO · 시나리오 재생 중", color = DsColors.warn)
+            } else if (!ui.vehicleLive) {
+                Spacer(Modifier.height(14.dp))
+                Chip(text = "차량 신호 대기 중", color = DsColors.muted)
+            }
+        }
+
+        Spacer(Modifier.width(24.dp))
+
+        // ---- single large control ----------------------------------------------------------------
+        Button(
+            onClick = onToggle,
+            modifier = Modifier.size(132.dp),
+            shape = RoundedCornerShape(32.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = if (ui.playing) DsColors.surfaceHi else accent, contentColor = if (ui.playing) DsColors.text else DsColors.bg),
+        ) {
+            Text(text = if (ui.playing) "❚❚" else "▶", fontSize = 40.sp)
+        }
+    }
+}
+
+@Composable
+fun FlowRing(flow: Float, pulse: Float, accent: Color, breath: Float, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val stroke = 26.dp.toPx()
+        val inset = stroke / 2 + 6.dp.toPx()
+        val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
+        val topLeft = Offset(inset, inset)
+        // track
+        drawArc(color = DsColors.surfaceHi, startAngle = 135f, sweepAngle = 270f, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+        // dip glow (penalty pulse): a soft warm halo that fades in < 1 s
+        if (pulse > 0.02f) {
+            drawArc(color = DsColors.warn.copy(alpha = 0.35f * pulse), startAngle = 135f, sweepAngle = 270f, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(stroke * 1.6f, cap = StrokeCap.Round))
+        }
+        // flow arc
+        val sweep = max(4f, 270f * flow)
+        drawArc(
+            brush = Brush.sweepGradient(listOf(accent.copy(alpha = 0.55f), accent, accent.copy(alpha = 0.9f))),
+            startAngle = 135f, sweepAngle = sweep, useCenter = false, topLeft = topLeft, size = arcSize,
+            style = Stroke(stroke, cap = StrokeCap.Round), alpha = breath,
+        )
+    }
+}
+
+@Composable
+private fun EventLine(engine: EngineState?) {
+    val ev = engine?.lastEvent
+    val age = engine?.lastEventAgeSec ?: 999f
+    val visible = ev != null && age < 4f
+    val color = when {
+        !visible -> DsColors.muted
+        ev!!.isPenalty -> DsColors.warn
+        else -> DsColors.good
+    }
+    val text = when {
+        !visible -> engine?.let { if (it.streakSec > 20f) "부드럽게 ${it.streakSec.toInt()}초째" else "주행에 맞춰 연주 중" } ?: ""
+        ev!!.isPenalty -> "${ev.label} · 음악이 잠시 가라앉아요"
+        ev == DriveEvent.SIGNALED_TURN -> "깜빡이 좋아요 · 레이어가 열려요"
+        else -> ev.label
+    }
+    Text(text = text, fontSize = 26.sp, color = color, maxLines = 1)
+}
+
+@Composable
+private fun LayerDots(layers: List<String>, accent: Color) {
+    val all = listOf("pad" to "패드", "bass" to "베이스", "keys" to "키", "drums" to "드럼", "hats" to "하이햇", "melody" to "멜로디", "vinyl" to "바이닐", "rain" to "비")
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        for ((id, label) in all) {
+            val on = layers.contains(id)
+            Box(
+                modifier = Modifier
+                    .background(if (on) accent.copy(alpha = 0.22f) else DsColors.surface, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) { Text(text = label, fontSize = 18.sp, color = if (on) accent else DsColors.muted) }
+        }
+    }
+}
+
+@Composable
+fun Chip(text: String, color: Color) {
+    Box(modifier = Modifier.background(color.copy(alpha = 0.18f), RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(text = text, fontSize = 20.sp, color = color, fontWeight = FontWeight.Medium)
+    }
+}
