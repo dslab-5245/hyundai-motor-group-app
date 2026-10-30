@@ -13,13 +13,16 @@ import java.nio.ByteOrder
  * Decodes a local audio file (content:// URI from the document picker, or a file on USB) into
  * 48 kHz stereo float PCM on a background thread and serves it to the audio thread through a ring buffer.
  * Loops the track at the end. Any decode problem degrades to silence instead of crashing the audio thread.
+ *
+ * The ring is a lock-free single-producer (decoder) / single-consumer (audio thread) queue: each side owns one
+ * position and only reads the other's. Samples are stored before the owning position is published (volatile
+ * write), so the reader never sees a frame that is not fully written and the audio thread never blocks or waits.
  */
 class LocalTrackPlayer(private val context: Context, private val uri: Uri, private val outRate: Int = 48000) {
     private val ringFrames = outRate * 6 // 6 s
     private val ring = FloatArray(ringFrames * 2)
-    private var writePos = 0L
-    private var readPos = 0L
-    private val lock = Object()
+    @Volatile private var writePos = 0L   // written by the decoder thread only
+    @Volatile private var readPos = 0L    // written by the audio thread only
     @Volatile private var running = false
     private var thread: Thread? = null
     @Volatile var title: String = uri.lastPathSegment ?: "track"
@@ -38,24 +41,21 @@ class LocalTrackPlayer(private val context: Context, private val uri: Uri, priva
         thread = null
     }
 
-    /** Audio thread: fills [out] with [frames] stereo frames (zeros on underrun). */
+    /** Audio thread: fills [out] with [frames] stereo frames (zeros on underrun). Never blocks. */
     fun read(out: FloatArray, frames: Int) {
-        synchronized(lock) {
-            val avail = (writePos - readPos).toInt()
-            val n = minOf(frames, avail)
-            var o = 0
-            for (i in 0 until n) {
-                val idx = ((readPos + i) % ringFrames).toInt() * 2
-                out[o++] = ring[idx]; out[o++] = ring[idx + 1]
-            }
-            for (i in n until frames) { out[o++] = 0f; out[o++] = 0f }
-            readPos += n
-            lock.notifyAll()
+        val rp = readPos
+        val n = minOf(frames, (writePos - rp).toInt())
+        var idx = (rp % ringFrames).toInt() * 2
+        var o = 0
+        for (i in 0 until n) {
+            out[o++] = ring[idx]; out[o++] = ring[idx + 1]
+            idx += 2; if (idx >= ring.size) idx = 0
         }
+        for (i in n until frames) { out[o++] = 0f; out[o++] = 0f }
+        readPos = rp + n   // published after the copy: the decoder may now overwrite what was read
     }
 
-    // Decoder thread collects resampled frames in a local batch and pushes them into the ring in bulk,
-    // so the lock is taken once per chunk instead of once per frame (keeps the audio thread from contending).
+    // Decoder thread collects resampled frames in a local batch and pushes them into the ring in bulk.
     private val batch = FloatArray(BATCH_FRAMES * 2)
     private var batchFrames = 0
 
@@ -68,20 +68,21 @@ class LocalTrackPlayer(private val context: Context, private val uri: Uri, priva
     private fun flushBatch() {
         var off = 0
         while (off < batchFrames && running) {
-            synchronized(lock) {
-                val free = (ringFrames - 1 - (writePos - readPos)).toInt()
-                if (free <= 0) {
-                    try { lock.wait(20) } catch (_: InterruptedException) { running = false }
-                } else {
-                    val n = minOf(free, batchFrames - off)
-                    for (i in 0 until n) {
-                        val idx = ((writePos + i) % ringFrames).toInt() * 2
-                        ring[idx] = batch[(off + i) * 2]; ring[idx + 1] = batch[(off + i) * 2 + 1]
-                    }
-                    writePos += n
-                    off += n
-                }
+            val wp = writePos
+            val free = (ringFrames - 1 - (wp - readPos)).toInt()
+            if (free <= 0) {
+                // ring full (6 s ahead of playback): sleep a little instead of waiting on a monitor the audio thread would have to signal
+                try { Thread.sleep(5) } catch (_: InterruptedException) { running = false }
+                continue
             }
+            val n = minOf(free, batchFrames - off)
+            var idx = (wp % ringFrames).toInt() * 2
+            for (i in 0 until n) {
+                ring[idx] = batch[(off + i) * 2]; ring[idx + 1] = batch[(off + i) * 2 + 1]
+                idx += 2; if (idx >= ring.size) idx = 0
+            }
+            writePos = wp + n   // published after the copy: the audio thread may now read these frames
+            off += n
         }
         batchFrames = 0
     }

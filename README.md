@@ -39,6 +39,8 @@ drive-symphony/
 ```bash
 # 엔진 단위 테스트 (40개) + 프리뷰 WAV 9개 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
 ./gradlew :engine:test :engine:renderPreviews
+# 제출 전 정합성 점검: Gleo 스키마 = 매니페스트 액션 = 서비스 상수, 패키지명, 장르 enum, 권한 집합, README 테스트 수
+python -I scripts/check_consistency.py
 
 # Android 앱 (Android Studio 설치 후)
 ./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
