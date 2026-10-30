@@ -4,9 +4,11 @@
   packageName == applicationId, genre enum == engine Genre names.
 - README's engine test count == number of @Test functions in engine/src/test.
 - Manifest Pleos permissions == the ones the signal sources actually need (documented set).
+- Blind review: no e-mail address other than the project mailbox in tracked text files; every commit author is the
+  project pseudonym (the contest forbids developer names in the application form, attachments and GitHub).
 Exit code 1 on any mismatch; prints every check either way.
 """
-import io, json, os, re, sys
+import io, json, os, re, subprocess, sys
 
 sys.stdout.reconfigure(encoding="utf-8")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -83,6 +85,37 @@ check("no INTERNET permission (privacy policy promise)", "android.permission.INT
 # 7. privacy policy mentions the same promise
 privacy = read("docs", "privacy-policy.md")
 check("privacy policy states no network transmission", "INTERNET" in privacy)
+
+# 8. blind review: e-mail addresses in tracked text files
+PROJECT_MAIL = "dev@drivesymphony.local"
+mail_re = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+offenders = []
+try:
+    tracked = subprocess.run(["git", "-C", ROOT, "ls-files"], capture_output=True, text=True, check=True).stdout.split()
+except Exception:
+    tracked = []
+    for base, _, files in os.walk(ROOT):
+        if any(x in base for x in (".git", "build", ".gradle", ".kotlin", ".idea")):
+            continue
+        tracked += [os.path.relpath(os.path.join(base, f), ROOT) for f in files]
+for rel in tracked:
+    if not rel.endswith((".kt", ".kts", ".md", ".xml", ".json", ".py", ".ps1", ".txt", ".properties", ".toml")):
+        continue
+    try:
+        txt = io.open(os.path.join(ROOT, rel), encoding="utf-8").read()
+    except Exception:
+        continue
+    for m_ in mail_re.findall(txt):
+        if m_ != PROJECT_MAIL and not m_.endswith("@anthropic.com"):
+            offenders.append(f"{rel}: {m_}")
+check("no personal e-mail address in tracked files (blind review)", not offenders, "; ".join(offenders[:5]))
+
+# 9. blind review: commit authors
+try:
+    authors = sorted(set(subprocess.run(["git", "-C", ROOT, "log", "--format=%an <%ae>", "--all"], capture_output=True, text=True, check=True).stdout.split("\n")) - {""})
+    check("every commit author is the project pseudonym", authors == [f"Drive Symphony <{PROJECT_MAIL}>"], "; ".join(authors))
+except Exception as e:  # not a git checkout (e.g. the OneDrive mirror)
+    print(f"SKIP commit author check ({e.__class__.__name__})")
 
 print(f"\n{'ALL CHECKS PASSED' if fails == 0 else str(fails) + ' CHECK(S) FAILED'}")
 sys.exit(1 if fails else 0)

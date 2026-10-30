@@ -45,6 +45,8 @@ python -I scripts/check_consistency.py
 # Android 앱 (Android Studio 설치 후)
 ./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:assembleRelease      # 디버그 키로 서명된 release APK (공모전 제출용)
+# 제출 패키징: 블라인드 확인(커밋 작성자) → 정합성 점검 → 엔진 테스트 → release APK → apk/<팀명>_DriveSymphony_release.apk + sha256 + apksigner verify
+powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1 -Team "<팀명>"
 ```
 
 Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site: `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-sys-img.xml`, Automotive 폼팩터, Cold boot, RAM 4 GB).
