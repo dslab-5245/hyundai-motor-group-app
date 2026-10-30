@@ -398,6 +398,9 @@ class SymphonyService : MediaBrowserServiceCompat() {
             ACTION_PAUSE -> pause()
             ACTION_TOGGLE -> toggle()
             ACTION_NEXT_GENRE -> nextGenre()
+            // adb-friendly demo switch for headless/PT runs:
+            //   adb shell am startservice -n io.drivesymphony.app/.audio.SymphonyService -a io.drivesymphony.action.DEMO --ez on true --es scenario story
+            ACTION_DEMO -> setDemo(intent.getBooleanExtra("on", true), intent.getStringExtra("scenario") ?: settings.demoScenarioId)
             GLEO_START, GLEO_SET_GENRE, GLEO_HOW_IS_MY_DRIVING, GLEO_PAUSE -> handleGleoIntent(intent)
         }
         // Pleos media-app rule: keep the foreground notification current whenever the service is (re)started while playing.
@@ -489,6 +492,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         const val ACTION_PAUSE = "io.drivesymphony.action.PAUSE"
         const val ACTION_TOGGLE = "io.drivesymphony.action.TOGGLE"
         const val ACTION_NEXT_GENRE = "io.drivesymphony.action.NEXT_GENRE"
+        const val ACTION_DEMO = "io.drivesymphony.action.DEMO"
         // Gleo function names == intent actions (assets/schema.json)
         const val GLEO_START = "startSymphony"
         const val GLEO_SET_GENRE = "setGenre"
