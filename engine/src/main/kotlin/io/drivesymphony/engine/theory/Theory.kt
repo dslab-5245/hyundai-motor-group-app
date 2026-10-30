@@ -119,6 +119,21 @@ object Progressions {
         return prog.map { Chord((keyRoot + it.degree) % 12, it.quality, it.beats) }
     }
 
+    /**
+     * Two progressions in the same key for an A-A-B-A form. B differs from A whenever the pool allows;
+     * in jazz, B gets occasional tritone substitutions on dominant chords so long trips keep moving harmonically.
+     */
+    fun pickSections(genre: Genre, keyRoot: Int, rng: Rng): Pair<List<Chord>, List<Chord>> {
+        val pool = when (genre) { Genre.LOFI -> lofi; Genre.JAZZ -> jazz; Genre.AMBIENT -> ambient }
+        val ai = rng.nextInt(pool.size)
+        var bi = rng.nextInt(pool.size)
+        if (pool.size > 1 && bi == ai) bi = (ai + 1 + rng.nextInt(pool.size - 1)) % pool.size
+        val a = pool[ai].map { Chord((keyRoot + it.degree) % 12, it.quality, it.beats) }
+        var b = pool[bi].map { Chord((keyRoot + it.degree) % 12, it.quality, it.beats) }
+        if (genre == Genre.JAZZ) b = b.map { c -> if (c.quality == ChordQuality.DOM7 && rng.chance(0.35f)) c.copy(rootPc = (c.rootPc + 6) % 12) else c }
+        return a to b
+    }
+
     /** Keys that sit well for EP/bass registers; night leans to flat keys (darker), day to sharps. */
     fun pickKey(hourOfDay: Int, rng: Rng): Int {
         val night = hourOfDay < 6 || hourOfDay >= 19

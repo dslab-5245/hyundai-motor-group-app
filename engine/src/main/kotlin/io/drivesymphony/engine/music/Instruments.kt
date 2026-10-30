@@ -12,6 +12,7 @@ import io.drivesymphony.engine.dsp.Svf
 import io.drivesymphony.engine.dsp.midiToHz
 import io.drivesymphony.engine.dsp.panGains
 import io.drivesymphony.engine.dsp.softClip
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
 
@@ -31,10 +32,16 @@ class EPiano(private val sr: Float, seed: Int, private val maxVoices: Int = 6, p
         var vel = 0f
         var remaining = 0L
         var age = 0L
+        var gl = 0.7071f
+        var gr = 0.7071f
         fun on(m: Int, v: Float, durSamples: Long) {
             midi = m; vel = v; remaining = durSamples; age = 0
             op.setFrequency(midiToHz(m), 1f, if (m > 72) 4f else 7f)
             tone.setCutoff(1800f + v * 5000f * bright)
+            // keyboard stereo image: low notes left, high notes right (like a miked EP / piano)
+            val pan = ((m - 64) / 22f).coerceIn(-0.6f, 0.6f)
+            val pp = (pan + 1f) * 0.25f * 3.1415927f
+            gl = cos(pp); gr = sin(pp)
             env.noteOn()
         }
         fun render(): Float {
@@ -62,13 +69,13 @@ class EPiano(private val sr: Float, seed: Int, private val maxVoices: Int = 6, p
     fun allOff() { voices.forEach { it.env.noteOff() } }
 
     fun render(out: StereoOut, gain: Float) {
-        var sum = 0f
-        for (v in voices) sum += v.render()
+        var sl = 0f; var sr2 = 0f
+        for (v in voices) { val s = v.render(); if (s != 0f) { sl += s * v.gl; sr2 += s * v.gr } }
         val t = trem.process()
         val gl = 1f - tremoloDepth * 0.5f * (1f + t)
         val gr = 1f - tremoloDepth * 0.5f * (1f - t)
-        out.l += sum * gain * gl
-        out.r += sum * gain * gr
+        out.l += sl * gain * gl
+        out.r += sr2 * gain * gr
     }
 }
 
@@ -220,7 +227,7 @@ class Drums(private val sr: Float, seed: Int) {
             val dec = if (hatOpen) 5f else 38f
             hatHp.process(rng.nextBipolar())
             val s = hatHp.high * exp(-t * dec) * hatVel * 0.35f
-            l += s * 1.1f; r += s * 0.9f
+            l += s * 1.5f; r += s * 0.5f   // hats sit left of the drummer
             hatT += inv; if (hatT > 0.7f) hatT = -1f
         }
         if (rideT >= 0f) {
@@ -229,14 +236,14 @@ class Drums(private val sr: Float, seed: Int) {
             val ping = sin(ridePh * 6.2831853f) * exp(-t * 7f) * 0.18f
             val wash = rideBp.bandpass.let { rideBp.process(rng.nextBipolar()); rideBp.bandpass } * exp(-t * 3.2f) * 0.45f
             val s = (ping + wash) * rideVel
-            l += s * 0.8f; r += s * 1.2f
+            l += s * 0.5f; r += s * 1.5f   // ride on the right
             rideT += inv; if (rideT > 1.2f) rideT = -1f
         }
         if (shT >= 0f) {
             val t = shT
             shHp.process(pink.process())
             val s = shHp.high * exp(-t * 26f) * shVel * 0.5f
-            l += s * 0.9f; r += s * 1.1f
+            l += s * 0.7f; r += s * 1.3f
             shT += inv; if (shT > 0.3f) shT = -1f
         }
         if (rimT >= 0f) {

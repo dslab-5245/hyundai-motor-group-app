@@ -12,6 +12,15 @@ enum class HitKind { KICK, SNARE, HAT_C, HAT_O, RIDE, SHAKER, RIM, EP, BASS, LEA
 
 class StepEvent(val step: Int, val kind: HitKind, val note: Int = 0, val vel: Float = 0.8f, val lenSteps: Float = 1f)
 
+/** Per-bar form context handed to the arranger (mutable and reused: no allocation per bar). */
+class BarContext {
+    var bar = 0            // bars since the current composition started
+    var barInSection = 0   // 0..7
+    var section = 0        // 0..3 of an A-A-B-A form
+    var intro = false      // first bars of a composition: no drums regardless of density
+    var fill = false       // last bar of a section
+}
+
 /**
  * 16-step bar clock with swing. Events are fired at block granularity (<= 256 samples jitter),
  * which is inaudible for these genres and keeps the audio thread allocation-free.
@@ -81,15 +90,44 @@ class Clock(private val sr: Int) {
 class Arranger(private val genre: Genre, private val rng: Rng) {
     private val events = ArrayList<StepEvent>(64)
     private var lastLeadNote = -1
+    private var ctx = BarContext()
 
-    fun bar(chord: Chord, next: Chord, p: MusicParams, barIndex: Int): List<StepEvent> {
+    fun bar(chord: Chord, next: Chord, p: MusicParams, ctx: BarContext): List<StepEvent> {
+        this.ctx = ctx
         events.clear()
+        if (ctx.barInSection == 0 || !motifSet) newMotif()
         when (genre) {
-            Genre.LOFI -> lofi(chord, next, p, barIndex)
-            Genre.JAZZ -> jazz(chord, next, p, barIndex)
-            Genre.AMBIENT -> ambient(chord, next, p, barIndex)
+            Genre.LOFI -> lofi(chord, next, p, ctx.bar)
+            Genre.JAZZ -> jazz(chord, next, p, ctx.bar)
+            Genre.AMBIENT -> ambient(chord, next, p, ctx.bar)
         }
+        if (ctx.fill && !ctx.intro) fill(chord, p)
         return events
+    }
+
+    /** One quiet resolution bar (pad + EP tonic chord, bass root, no drums) played when a trip ends. */
+    fun cadence(tonic: Chord, p: MusicParams): List<StepEvent> {
+        events.clear()
+        for (n in Voicing.pad(tonic, 0.8f)) add(0, HitKind.PAD_CHORD, n, 0.55f, 16f)
+        for (n in Voicing.comp(tonic, 0.8f, rng)) add(0, HitKind.EP, n, 0.6f, 14f)
+        add(0, HitKind.BASS, bassRoot(tonic), 0.7f, 14f)
+        return events
+    }
+
+    /** Section-closing fills: a snare build (lo-fi), a brush drag with kick (jazz), a swell with a high sparkle (ambient). */
+    private fun fill(chord: Chord, p: MusicParams) {
+        val d = if (ctx.intro) minOf(p.density, 0.8f) else p.density   // intro bars stay drumless
+        when (genre) {
+            Genre.LOFI -> if (d >= 0.9f) {
+                add(12, HitKind.SNARE, vel = 0.35f); add(13, HitKind.SNARE, vel = 0.45f); add(14, HitKind.SNARE, vel = 0.55f); add(15, HitKind.SNARE, vel = 0.75f)
+                if (d >= 1.8f) add(15, HitKind.HAT_O, vel = 0.5f)
+            }
+            Genre.JAZZ -> if (d >= 0.9f) {
+                add(10, HitKind.SNARE, vel = 0.4f); add(11, HitKind.SNARE, vel = 0.45f); add(13, HitKind.SNARE, vel = 0.5f); add(14, HitKind.SNARE, vel = 0.6f)
+                add(12, HitKind.KICK, vel = 0.4f); add(12, HitKind.RIDE, vel = 0.85f)
+            }
+            Genre.AMBIENT -> { add(8, HitKind.PULSE); if (d >= 1.2f) add(12, HitKind.EP, 84 + chord.rootPc, 0.3f, 6f) }
+        }
     }
 
     private fun add(step: Int, kind: HitKind, note: Int = 0, vel: Float = 0.8f, len: Float = 1f) {
@@ -102,7 +140,7 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
     private fun seventh(chord: Chord): Int = bassRoot(chord) + chord.quality.intervals.getOrElse(3) { 10 }.coerceAtMost(11)
 
     private fun lofi(chord: Chord, next: Chord, p: MusicParams, barIndex: Int) {
-        val d = p.density
+        val d = if (ctx.intro) minOf(p.density, 0.8f) else p.density   // intro bars stay drumless
         val hum = 0.85f + rng.nextFloat() * 0.15f // human velocity
         // drums
         if (d >= 0.9f) {
@@ -115,6 +153,7 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
             if (d >= 2.4f && rng.chance(0.5f)) add(15, HitKind.SNARE, vel = 0.3f)
             if (d >= 2.2f && rng.chance(0.35f)) add(9, HitKind.RIM, vel = 0.4f)
         }
+        if (ctx.barInSection == 0 && d >= 1.8f) add(0, HitKind.HAT_O, vel = 0.45f)
         if (d >= 1.8f) {
             for (k in 0 until 16 step 2) {
                 val v = if (k % 4 == 0) 0.6f else 0.42f
@@ -152,11 +191,11 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
         for (n in padNotes) add(0, HitKind.PAD_CHORD, n, 0.5f, 16f)
 
         // melody on bloom
-        if (p.bloom > 0.5f) melody(chord, start = if (rng.chance(0.5f)) 8 else 4, maxNotes = 3 + (p.bloom * 3).toInt(), swingy = true)
+        if (p.bloom > 0.5f) melody(chord, maxNotes = 3 + (p.bloom * 3).toInt(), swingy = true)
     }
 
     private fun jazz(chord: Chord, next: Chord, p: MusicParams, barIndex: Int) {
-        val d = p.density
+        val d = if (ctx.intro) minOf(p.density, 0.8f) else p.density   // intro bars stay drumless
         val hum = 0.85f + rng.nextFloat() * 0.15f
         // ride & hi-hat
         if (d >= 0.9f) {
@@ -166,6 +205,7 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
             }
             add(4, HitKind.HAT_C, vel = 0.55f)
             add(12, HitKind.HAT_C, vel = 0.55f)
+            if (ctx.barInSection == 0) add(0, HitKind.RIDE, vel = 0.95f)   // section accent
         }
         if (d >= 1.7f) {
             for (beat in 0 until 4) if (rng.chance(0.8f)) add(beat * 4, HitKind.KICK, vel = 0.22f) // feathered kick
@@ -199,11 +239,11 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
         // soft pad only at low density (keeps the trio clean when the groove is full)
         if (d < 1.4f) for (n in Voicing.pad(chord, p.richness * 0.5f)) add(0, HitKind.PAD_CHORD, n, 0.3f, 16f)
 
-        if (p.bloom > 0.5f) melody(chord, start = rng.nextInt(4) * 2, maxNotes = 4 + (p.bloom * 4).toInt(), swingy = true)
+        if (p.bloom > 0.5f) melody(chord, maxNotes = 4 + (p.bloom * 4).toInt(), swingy = true)
     }
 
     private fun ambient(chord: Chord, next: Chord, p: MusicParams, barIndex: Int) {
-        val d = p.density
+        val d = if (ctx.intro) minOf(p.density, 0.8f) else p.density   // intro bars stay drumless
         for (n in Voicing.pad(chord, p.richness)) add(0, HitKind.PAD_CHORD, n, 0.6f, 16f)
         if (barIndex % 2 == 0) add(0, HitKind.BASS, bassRoot(chord), 0.5f, 30f)
         if (d >= 0.8f) {
@@ -216,30 +256,55 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
         }
         if (d >= 1.6f && barIndex % 2 == 0) add(0, HitKind.PULSE)
         if (d >= 1.8f && rng.chance(0.5f)) add(10, HitKind.EP, 72 + chord.rootPc + chord.safeTones()[rng.nextInt(chord.safeTones().size)], 0.3f, 10f)
-        if (p.bloom > 0.5f) melody(chord, start = 8, maxNotes = 2 + (p.bloom * 2).toInt(), swingy = false)
+        if (p.bloom > 0.5f) melody(chord, maxNotes = 2 + (p.bloom * 2).toInt(), swingy = false)
     }
 
-    /** Stepwise melody from the chord's safe tones; rests keep it airy. */
-    private fun melody(chord: Chord, start: Int, maxNotes: Int, swingy: Boolean) {
+    // ---- motif: a 4-note cell per 8-bar section; bars 0-3 state it, bars 4-7 answer it (call & response)
+    private val motifDeg = IntArray(4)
+    private val motifPos = IntArray(4)
+    private var motifSet = false
+
+    private fun newMotif() {
+        val grid = if (genre != Genre.AMBIENT) intArrayOf(0, 2, 4, 6, 8, 10, 12, 14) else intArrayOf(0, 4, 8, 12)
+        // choose 4 distinct ascending grid positions (reservoir-style, deterministic by seed)
+        var picked = 0
+        var i = 0
+        while (picked < 4 && i < grid.size) {
+            val remaining = grid.size - i
+            if (rng.chance((4 - picked).toFloat() / remaining)) motifPos[picked++] = grid[i]
+            i++
+        }
+        while (picked < 4) motifPos[picked] = motifPos[picked - 1].also { picked++ }
+        var deg = rng.nextInt(5)
+        for (k in 0 until 4) {
+            motifDeg[k] = deg
+            deg += if (rng.chance(0.5f)) 1 else -1
+            if (deg < 0) deg = 1
+            if (deg > 6) deg = 5
+        }
+        motifSet = true
+    }
+
+    /** Motif-based melody from the chord's safe tones; the answer half is shifted by an 8th and lifts its outer notes. */
+    private fun melody(chord: Chord, maxNotes: Int, swingy: Boolean) {
         val tones = chord.safeTones()
         val base = 72 + chord.rootPc
-        var idx = if (lastLeadNote < 0) rng.nextInt(tones.size) else {
-            // continue near the previous note
-            var best = 0; var bestDist = 99
-            for (i in tones.indices) { val dist = abs((base + tones[i]) - lastLeadNote); if (dist < bestDist) { bestDist = dist; best = i } }
-            best
-        }
-        var step = start
+        val answer = ctx.barInSection >= 4
         var count = 0
-        while (step < 16 && count < maxNotes) {
-            if (rng.chance(0.8f)) {
-                val note = base + tones[idx]
-                add(step, HitKind.LEAD, note, 0.45f + rng.nextFloat() * 0.25f, if (swingy) 1.6f else 3f)
+        for (k in 0 until 4) {
+            if (count >= maxNotes) break
+            var pos = motifPos[k] + (if (answer) 2 else 0)
+            if (pos > 15) pos -= 16
+            var deg = motifDeg[k] + (if (answer && (k == 0 || k == 3)) 1 else 0)
+            if (rng.chance(0.2f)) deg += if (rng.chance(0.5f)) 1 else -1
+            val octave = if (deg >= tones.size) 12 else if (deg < 0) -12 else 0
+            val idx = ((deg % tones.size) + tones.size) % tones.size
+            val note = base + tones[idx] + octave
+            if (rng.chance(0.85f)) {
+                add(pos, HitKind.LEAD, note, 0.45f + rng.nextFloat() * 0.25f, if (swingy) 1.6f else 3f)
                 lastLeadNote = note
                 count++
             }
-            idx = (idx + (if (rng.chance(0.5f)) 1 else -1) + tones.size) % tones.size
-            step += if (swingy) 2 else 4
         }
     }
 }

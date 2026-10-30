@@ -9,6 +9,7 @@ import io.drivesymphony.engine.director.MusicParams
 import io.drivesymphony.engine.director.ScoreState
 import io.drivesymphony.engine.dsp.Crush
 import io.drivesymphony.engine.dsp.DcBlock
+import io.drivesymphony.engine.dsp.DelayLine
 import io.drivesymphony.engine.dsp.Limiter
 import io.drivesymphony.engine.dsp.OnePole
 import io.drivesymphony.engine.dsp.Reverb
@@ -20,6 +21,7 @@ import io.drivesymphony.engine.dsp.dbToGain
 import kotlin.math.cos
 import kotlin.math.sin
 import io.drivesymphony.engine.music.Arranger
+import io.drivesymphony.engine.music.BarContext
 import io.drivesymphony.engine.music.Bass
 import io.drivesymphony.engine.music.Clock
 import io.drivesymphony.engine.music.Drums
@@ -99,7 +101,13 @@ class SymphonyEngine(
     var genre: Genre = genre
         private set
     private var keyRoot = Progressions.pickKey(hourOfDay, rng)
-    private var progression: List<Chord> = Progressions.pick(genre, keyRoot, rng)
+    private var progA: List<Chord> = Progressions.pick(genre, keyRoot, rng)
+    private var progB: List<Chord> = progA
+    private var progression: List<Chord> = progA
+    private var section = 0
+    private var barsSinceGenre = 0
+    private var cadenceBars = 0
+    private val ctx = BarContext()
     private var chordIdx = 0
     private var chordBeatsLeft = progression[0].beats
     private var arranger = Arranger(genre, rng)
@@ -126,6 +134,8 @@ class SymphonyEngine(
     private val smoothWidth = OnePole(sr).apply { setTimeConstant(0.1f); reset(0.8f) }
     private val smoothPan = OnePole(sr).apply { setTimeConstant(0.2f) }
     private val mix = StereoOut()
+    private val leadMix = StereoOut()
+    private val leadDly = DelayLine(2048)   // micro-doubler: two short delays widen the melody without a chorus
 
     // per-layer gains (smoothed per block)
     private var gDrums = 0f; private var gHats = 0f; private var gEp = 0.8f; private var gBass = 0.8f; private var gPad = 0.6f; private var gLead = 0f; private var gTex = 0.3f
@@ -186,7 +196,8 @@ class SymphonyEngine(
         this.roadName = roadName
         scorer.reset()
         elapsedSamples = 0; flowAccum = 0.0; flowSamples = 0; bestStreak = 0f; bloomSamples = 0; eventCounts.clear()
-        pendingGenre = genre // forces applyGenre at next bar -> new progression in the new key
+        cadenceBars = 1      // one resolution bar first, then ...
+        pendingGenre = genre // ... applyGenre at the following bar -> new progression in the new key
     }
 
     fun setRoadName(name: String?) { roadName = name; title = TripTitles.make(name, lastSignals.hourOfDay, keyRoot, genre) }
@@ -194,7 +205,11 @@ class SymphonyEngine(
     private fun applyGenre(g: Genre) {
         genre = g
         director.genre = g
-        progression = Progressions.pick(g, keyRoot, rng)
+        val sections = Progressions.pickSections(g, keyRoot, rng)
+        progA = sections.first; progB = sections.second
+        progression = progA
+        section = 0
+        barsSinceGenre = 0
         chordIdx = 0
         chordBeatsLeft = progression[0].beats
         arranger = Arranger(g, rng)
@@ -209,19 +224,41 @@ class SymphonyEngine(
     init { applyGenre(genre) }
 
     private fun onBar(bar: Int) {
-        pendingGenre?.let { pendingGenre = null; applyGenre(it) }
-        if (bar > 0) {
-            chordBeatsLeft -= 4
-            if (chordBeatsLeft <= 0) {
-                chordIdx = (chordIdx + 1) % progression.size
-                chordBeatsLeft = progression[chordIdx].beats
+        val p = targetParams
+        if (cadenceBars > 0) {
+            // trip ended: resolve on the tonic for one bar before the next composition starts
+            cadenceBars--
+            val tonic = progression[0]
+            currentChord = tonic; nextChord = tonic
+            barEvents = arranger.cadence(tonic, p)
+            return
+        }
+        var first = bar == 0
+        pendingGenre?.let { pendingGenre = null; applyGenre(it); first = true }
+        if (!first) {
+            barsSinceGenre++
+            val newSection = (barsSinceGenre / SECTION_BARS) % 4   // A A B A
+            if (newSection != section) {
+                section = newSection
+                progression = if (section == 2) progB else progA
+                chordIdx = 0
+                chordBeatsLeft = progression[0].beats
+            } else {
+                chordBeatsLeft -= 4
+                if (chordBeatsLeft <= 0) {
+                    chordIdx = (chordIdx + 1) % progression.size
+                    chordBeatsLeft = progression[chordIdx].beats
+                }
             }
         }
         currentChord = progression[chordIdx]
         nextChord = progression[(chordIdx + 1) % progression.size]
-        val p = targetParams
-        val barInChord = (currentChord.beats - chordBeatsLeft) / 4
-        barEvents = arranger.bar(currentChord, nextChord, p, bar + barInChord)
+        ctx.bar = barsSinceGenre
+        ctx.barInSection = barsSinceGenre % SECTION_BARS
+        ctx.section = section
+        ctx.intro = barsSinceGenre < 2
+        ctx.fill = ctx.barInSection == SECTION_BARS - 1
+        barEvents = arranger.bar(currentChord, nextChord, p, ctx)
     }
 
     private fun onStep(step: Int) {
@@ -287,7 +324,11 @@ class SymphonyEngine(
         for (i in 0 until frames) {
             mix.l = 0f; mix.r = 0f
             ep.render(mix, gEp * 0.55f)
-            lead.render(mix, gLead * 0.4f)
+            leadMix.l = 0f; leadMix.r = 0f
+            lead.render(leadMix, gLead * 0.4f)
+            leadDly.write((leadMix.l + leadMix.r) * 0.5f)
+            mix.l += leadMix.l + leadDly.readInt(430) * 0.3f
+            mix.r += leadMix.r + leadDly.readInt(290) * 0.3f
             bass.render(mix, gBass * 0.7f)
             pad.render(mix, gPad * 0.5f)
             drums.render(mix, drumsGain * (if (gDrums < 0.02f) 0f else 1f) * (0.4f + 0.6f * gDrums))
@@ -314,7 +355,7 @@ class SymphonyEngine(
             val side = (l - r) * 0.5f * w
             l = mid + side; r = mid - side
 
-            val g = smoothGain.process(targetGain) * 0.9f
+            val g = smoothGain.process(targetGain) * 0.72f   // ~ -14 dBFS RMS on a smooth drive; limiter mostly idle
             l = limL.process(dcL.process(l * g))
             r = limR.process(dcR.process(r * g))
             out[o++] = l; out[o++] = r
@@ -384,7 +425,10 @@ class SymphonyEngine(
 
     fun isParked(): Boolean = lastSignals.gear == Gear.PARK
 
-    companion object { private const val PUBLISH_INTERVAL = 1024 }
+    companion object {
+        private const val PUBLISH_INTERVAL = 1024
+        private const val SECTION_BARS = 8
+    }
 }
 
 /** Trip title: time of day + road name + key/genre, e.g. "저녁의 올림픽대로 (Bb Lo-fi)". */
