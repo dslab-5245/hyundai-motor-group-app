@@ -28,6 +28,7 @@ import io.drivesymphony.app.Settings
 import io.drivesymphony.app.history.TripHistory
 import io.drivesymphony.app.history.TripRecord
 import io.drivesymphony.app.remix.LocalTrackPlayer
+import io.drivesymphony.app.share.ShareCard
 import io.drivesymphony.app.signals.PleosNaviSource
 import io.drivesymphony.app.signals.PleosVehicleSource
 import io.drivesymphony.app.signals.ScenarioSource
@@ -71,6 +72,7 @@ data class ServiceUiState(
     val lastSummary: TripSummary? = null,
     val tripActive: Boolean = false,
     val history: List<TripRecord> = emptyList(),
+    val autoStart: Boolean = false,
 )
 
 /**
@@ -123,7 +125,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         output = AudioOutput(SAMPLE_RATE, BLOCK_FRAMES, ::renderBlock)
         createChannel()
         setupSession()
-        _ui.update { it.copy(genre = settings.genre, feedbackLevel = settings.feedbackLevel, demo = settings.demoMode, demoScenarioId = settings.demoScenarioId, history = history.all()) }
+        _ui.update { it.copy(genre = settings.genre, feedbackLevel = settings.feedbackLevel, demo = settings.demoMode, demoScenarioId = settings.demoScenarioId, history = history.all(), autoStart = settings.autoStartOnDrive) }
         drivingState.start()
         scope.launch { drivingState.restricted.collect { r -> _ui.update { it.copy(restricted = r) } } }
         startSources()
@@ -178,6 +180,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
         if (moving && !wasMoving) {
             movingSinceMs = now
             _ui.update { it.copy(tripActive = true) }
+            // opt-in: start playing when the car starts moving (off by default; never auto-plays on connection)
+            if (settings.autoStartOnDrive && !_ui.value.playing) play()
         }
         if (!moving && wasMoving && gear == Gear.PARK && now - movingSinceMs > 45_000) {
             val summary = engine.summary()
@@ -269,6 +273,20 @@ class SymphonyService : MediaBrowserServiceCompat() {
 
     fun currentSummary(): TripSummary = engine.summary()
 
+    fun setAutoStart(on: Boolean) {
+        settings.autoStartOnDrive = on
+        _ui.update { it.copy(autoStart = on) }
+    }
+
+    // media-center artwork, regenerated only when title or genre changes
+    private var artKey = ""
+    private var artBitmap: android.graphics.Bitmap? = null
+    private fun artworkFor(title: String, genre: Genre): android.graphics.Bitmap? {
+        val key = "$title|$genre"
+        if (key != artKey || artBitmap == null) { artBitmap = runCatching { ShareCard.artwork(title, genre) }.getOrNull(); artKey = key }
+        return artBitmap
+    }
+
     // ---------------------------------------------------------------- audio focus
     // Pleos audio-focus policy (Interaction Matrix v1.0): LOSS -> stop immediately and abandon focus;
     // LOSS_TRANSIENT (Gleo voice, call) -> stop immediately, resume only on GAIN; CAN_DUCK (navigation prompt) -> app-side attenuation.
@@ -352,6 +370,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
                 .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Drive Symphony · ${_ui.value.genre.label}")
                 .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "${st.keyLabel} · ${st.bpm.toInt()} BPM")
+                .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, artworkFor(title, _ui.value.genre))
                 .build()
         )
     }

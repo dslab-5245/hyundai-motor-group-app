@@ -31,7 +31,7 @@ class Settings(context: Context) {
         set(v) = prefs.edit().putString(KEY_REMIX, v).apply()
 
     var autoStartOnDrive: Boolean
-        get() = prefs.getBoolean(KEY_AUTOSTART, true)
+        get() = prefs.getBoolean(KEY_AUTOSTART, false)
         set(v) = prefs.edit().putBoolean(KEY_AUTOSTART, v).apply()
 
     companion object {

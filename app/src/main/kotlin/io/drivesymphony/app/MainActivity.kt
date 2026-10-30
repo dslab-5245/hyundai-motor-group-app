@@ -38,6 +38,7 @@ import io.drivesymphony.app.ui.ComposerScreen
 import io.drivesymphony.app.ui.DriveSymphonyTheme
 import io.drivesymphony.app.ui.DsColors
 import io.drivesymphony.app.ui.FlowScreen
+import io.drivesymphony.app.share.ShareCard
 import io.drivesymphony.engine.TripSummary
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -96,13 +97,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun share(summary: TripSummary) {
-        val text = buildString {
-            append("🎧 ${summary.title}\n")
-            append("평균 Flow ${(summary.averageFlow * 100).toInt()} · 최장 부드러운 구간 ${summary.bestStreakSec.toInt()}초 · 멜로디 ${summary.bloomSec.toInt()}초\n")
-            append("${summary.genre.label} · ${summary.keyLabel} · ${summary.bpm.toInt()} BPM · ${summary.bars}마디\n")
-            append("#DriveSymphony #PleosAppMarket")
+        // image card first; plain text if the card cannot be written (e.g. no cache dir)
+        val intent = runCatching { ShareCard.shareIntent(this, summary) }.getOrElse {
+            Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, ShareCard.caption(summary))
         }
-        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "여정 공유"))
+        startActivity(Intent.createChooser(intent, "여정 공유"))
     }
 }
 
@@ -138,6 +137,7 @@ private fun Root(service: SymphonyService?, onPickTrack: () -> Unit, onShare: (T
                 onPickTrack = onPickTrack,
                 onClearTrack = { service.setRemixTrack(null) },
                 onShare = onShare,
+                onAutoStart = service::setAutoStart,
             )
         }
     }

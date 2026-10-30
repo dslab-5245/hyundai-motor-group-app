@@ -49,6 +49,7 @@ fun ComposerScreen(
     onPickTrack: () -> Unit,
     onClearTrack: () -> Unit,
     onShare: (TripSummary) -> Unit,
+    onAutoStart: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val accent = DsColors.accent(ui.genre)
@@ -126,6 +127,15 @@ fun ComposerScreen(
                         OutlinedButton(onClick = { onFeedback(i) }, modifier = Modifier.height(60.dp),
                             colors = ButtonDefaults.outlinedButtonColors(containerColor = if (sel) accent.copy(alpha = 0.22f) else Color.Transparent, contentColor = if (sel) accent else DsColors.muted)) { Text(label, fontSize = 20.sp) }
                     }
+                }
+            }
+            Card {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(text = "출발하면 자동 연주", fontSize = 22.sp, color = DsColors.text)
+                        Text(text = "기어 D로 움직이기 시작하면 연주를 시작합니다 (기본 꺼짐)", fontSize = 18.sp, color = DsColors.muted)
+                    }
+                    Switch(checked = ui.autoStart, onCheckedChange = onAutoStart)
                 }
             }
             Card {
