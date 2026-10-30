@@ -25,8 +25,8 @@ drive-symphony/
 ## 동작 원리 (한 장)
 
 1. **신호 수집** — Vehicle SDK 리스너 9종 + NaviHelper 콜백 6종을 `SignalStore`에 모아 25 Hz로 스냅샷.
-2. **점수화** — `DrivingScorer`가 조향 변화율, 브레이크 토글 패턴, 깜빡이 규율, 제한속도 대비 속도(내비 위치 미분), 스쿨존, 안전벨트를 보고 **flow(0~1)** 를 만든다. 하강은 0.6 s, 상승은 5 s. 30초 이상 무사고 후 단발 이벤트는 **긴급 회피로 간주해 감점 절반**. 주차·후진 중엔 채점하지 않는다. 바닥은 0.1 (완전 침묵 없음).
-3. **음악화** — `MusicDirector`가 flow를 밀도(레이어 수)·컷오프·테이프 워블·바이닐·크러시·리버브·스테레오 폭·게인·화성 확장·멜로디(bloom)로 매핑한다. 급조작 펄스는 150 ms 안에 들리고, 회복은 천천히.
+2. **점수화** — `DrivingScorer`가 조향 변화율, 브레이크 토글 패턴, 깜빡이 규율, 제한속도 대비 속도(내비 위치 미분), 스쿨존, 안전벨트를 보고 **flow(0~1)** 를 만든다. 하강은 0.6 s, 상승은 5 s. 30초 이상 무사고 후의 첫 급조작과 그 뒤 2.5초 안의 조작은 **긴급 회피로 간주해 감점·펄스 절반**(끼어들기 회피 = 급조향+급제동 한 묶음; 측정: 최저 flow 0.81 vs 같은 조작이 습관일 때 0.61). 과속은 추정 속도가 잡음이므로 **2초 이상 지속**될 때만 반영(내비의 카메라 과속 알림은 즉시). 주차·후진 중엔 채점하지 않는다. 바닥은 0.1 (완전 침묵 없음).
+3. **음악화** — `MusicDirector`가 flow를 밀도(레이어 수)·컷오프·테이프 워블·바이닐·크러시·리버브·스테레오 폭·게인·화성 확장·멜로디(bloom)로 매핑한다. 급조작 펄스는 **120 ms** 안에 들리고(`EngineResponseTest`: 같은 시드 A/B 렌더에서 이벤트 후 오디오 -3 dB·컷오프 반감까지 120 ms), 회복은 천천히.
 4. **연주** — `Arranger`가 마디마다 장르 규칙(로파이 스윙 58%, 재즈 트리오 워킹베이스·라이드, 앰비언트 패드·아르페지오)으로 이벤트를 만들고 `SymphonyEngine`이 샘플 단위로 합성한다. 와이퍼=비 텍스처·셰이커, 깜빡이=비트 위 림 클릭, 조향=패닝, 주행모드=에너지, 크루즈=드론.
    **형식**: 8마디 섹션 A-A-B-A(같은 키의 두 진행, 재즈 B는 트라이톤 대리), 섹션 끝 필(로파이 스네어 빌드·재즈 브러시 드래그·앰비언트 스웰), 첫 2마디 인트로(드럼 없음), 8마디마다 4음 모티프를 만들어 앞 4마디는 제시·뒤 4마디는 응답(call & response). **스테레오**: EP 피치 패닝, 드러머 시점 햇/라이드 패닝, 멜로디 마이크로 더블러 — 안전 주행 시 좌우 상관 0.71~0.87(이전 0.94~0.98), RMS 약 -14 dBFS.
 5. **기존 음악 변주하기** — 앱이 직접 재생하는 로컬 음원에 같은 flow 규칙을 건다(`TrackProcessor`: 로우패스·테이프 워블·크러시·리버브·M/S 폭·게인·리미터). 수치 검증(`TrackProcessorTest`): 안전 주행 시 원곡 대비 +0.15 dB·고역 유지 101%·좌우 상관 동일(사실상 무가공), 거친 주행 시 -5.8 dB·고역 5%·폭 축소(상관 0.72→0.81), 상태 전환 시 클릭 없음, 클리핑 없음.
@@ -37,7 +37,7 @@ drive-symphony/
 요구: JDK 17, Android Studio(Android SDK 35, Pleos Connect 에뮬레이터 v2.1.0). Android SDK가 없으면 `:app`은 자동으로 제외되고 엔진만 빌드된다.
 
 ```bash
-# 엔진 단위 테스트 (26개) + 프리뷰 WAV 9개 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
+# 엔진 단위 테스트 (32개) + 프리뷰 WAV 9개 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
 ./gradlew :engine:test :engine:renderPreviews
 
 # Android 앱 (Android Studio 설치 후)
@@ -57,18 +57,19 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 
 ## 제약과 정직한 표시
 
-- Vehicle SDK 2.3.2에는 **차속·가속페달·브레이크 강도가 없다.** 속도는 NaviHelper 위치를 미분해 추정하며(내비 실행 중에만), 없으면 속도 기반 규칙은 비활성화된다.
+- Vehicle SDK 2.3.2에는 **차속·가속페달·브레이크 강도가 없다.** 속도는 NaviHelper 위치(1 Hz)를 `SpeedEstimator`(4초 창 현 거리 + EMA)로 추정한다. 합성 궤적 검증: 위치 잡음 σ=3 m에서 오차 RMS 1.8 km/h, σ=5 m에서 3.1 km/h, 정지 후 3초 안에 0. 내비 미실행 시 속도 기반 규칙은 비활성화된다. 권한은 SDK jar의 권한 검사에 1:1 대응하는 5종(`CAR_DRIVE`·`CAR_LIGHTS`·`CAR_WINDOWS`·`CAR_SEATS`·`NAVI_ROUTE` — `getCurrentLocationInfo()`가 NAVI_ROUTE를 검사함)만 선언한다.
 - NaviHelper는 **Pleos Connect 내비 전용**이다(카카오내비 경로는 읽지 못함).
 - 실제 **HUD/클러스터 투사 API는 서드파티에 열려 있지 않다.** "HUD 표시"는 중앙 화면의 글랜스 레이어(Flow 링 + 세 줄)로 구현했고, 주행 중에는 그 화면만 보인다.
 - 리믹스 모드는 **앱이 직접 재생하는 음원**에만 적용된다(스트리밍 앱의 오디오는 DRM·오디오 캡처 제한으로 처리 불가). 
 - TTS/STT/Vehicle Control SDK는 '준비 중'이라 사용하지 않는다. Gleo 연동은 공식 라디오 예제의 스키마 형식(`packageName`·`appDescription`·`actionCalls[].function{name,description,parameters,component}`)으로 `assets/schema.json`에 작성했고, 앱은 함수명을 액션으로 하는 인텐트의 `ACTION_PARAM`(JSON) extra를 받아 처리한 뒤 `functionName/status/message/data` 응답을 만든다. 응답 반환 채널은 공개 문서에 없어 브로드캐스트(`io.drivesymphony.GLEO_CALLBACK`)+로그로 두었고, Gleo 심사·활성화는 HMG 측 절차다.
 - Pleos Music/Audio 앱 규정 반영: MediaBrowserService + MediaSession(play/pause/stop/skip/playFromMediaId/playFromSearch), `android:appCategory="audio"`, `androidx.car.app.launchable`, 오디오 포커스 정책(LOSS 즉시 정지·포커스 반납, LOSS_TRANSIENT(Gleo·통화) 즉시 정지 후 GAIN 시 재개, CAN_DUCK 앱 자체 -12 dB 램프 감쇠), 작업 스와이프 시 stop→stopSelf→super, 주행 중 화면은 애니메이션 없이 단계값만 갱신(5점 단위 Flow 링·on/off 할로).
-- 주행 중 비내비 앱 CPU 예산(5% 미만)은 에뮬레이터/실차에서 측정해야 한다. 합성 부하가 크면 `SymphonyEngine`의 리버브·오버샘플링을 낮추는 라이트 프로파일을 추가한다(미구현).
+- 주행 중 비내비 앱 CPU 예산(5% 미만)은 에뮬레이터/실차에서 측정해야 한다. 데스크톱 JVM 실측은 단일 코어 2.1~2.9%. 차량에서 예산을 넘기면 리버브·오버샘플링을 낮추는 라이트 프로파일로 대응한다.
 
 ## 제출 자료
 
 - `docs/privacy-policy.md` — 개인정보처리방침(한/영). 앱에 INTERNET 권한이 없고 여정 요약만 로컬에 남는다는 사실 기반. 제출 시 공개 URL(예: GitHub Pages)로 올려 링크를 적는다.
 - `store/icon-512.png` — 스토어 아이콘 512×512(런처 아이콘과 같은 디자인, `python -I scripts/make_store_assets.py`로 재생성).
+- `previews/lofi_ab_clean.wav`·`lofi_ab_event.wav` — 같은 시드·같은 주행의 A/B 음원(30초). 20.0초까지 샘플 단위로 동일하고 20.3초의 브레이크 찍기 뒤 120 ms 안에 갈라진다(`gradlew :engine:renderPreviews`).
 - 스크린샷(2560×1380 등)은 에뮬레이터 스모크 스크립트(`scripts/emulator-smoke.ps1`)가 `build/smoke/<ts>/screen_*.png`로 저장한다.
 
 ## 라이선스

@@ -58,6 +58,8 @@ data class EngineState(
     val title: String,
     val elapsedSec: Float,
     val peak: Float,
+    /** last penalty was read as an emergency manoeuvre (half penalty, short breath). */
+    val graced: Boolean = false,
 )
 
 data class TripSummary(
@@ -441,6 +443,7 @@ class SymphonyEngine(
             moving = score.moving,
             lastEvent = score.lastEvent,
             lastEventAgeSec = score.lastEventAgeSec,
+            graced = score.graced,
             density = p.density,
             bloom = p.bloom,
             layers = ArrayList(layersActive),
