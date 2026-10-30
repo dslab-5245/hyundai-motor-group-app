@@ -383,6 +383,8 @@ class SymphonyEngine(
     )
 
     fun isParked(): Boolean = lastSignals.gear == Gear.PARK
+
+    companion object { private const val PUBLISH_INTERVAL = 1024 }
 }
 
 /** Trip title: time of day + road name + key/genre, e.g. "저녁의 올림픽대로 (Bb Lo-fi)". */
@@ -399,5 +401,4 @@ object TripTitles {
         return "$when_ $road (${Pitch.name(keyRoot)} ${genre.label})"
     }
 
-    companion object { private const val PUBLISH_INTERVAL = 1024 }
 }
