@@ -1,9 +1,9 @@
 # Headless smoke test on the Pleos Connect emulator: boot -> install -> start demo -> collect evidence.
-#   powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\emulator-smoke.ps1 [-Apk path] [-Seconds 40] [-KeepRunning]
+#   powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\emulator-smoke.ps1 [-Apk path] [-Seconds 110] [-KeepRunning]
 # Evidence lands in <repo>\build\smoke\<timestamp>\ : logcat.txt, crashes.txt, top.txt, media_session.txt, audio.txt, screen_*.png
 param(
     [string]$Apk = "C:\Users\user\dev\drive-symphony\app\build\outputs\apk\debug\app-debug.apk",
-    [int]$Seconds = 40,
+    [int]$Seconds = 110,   # demo story is 106 s: 20 s calm, 20-28 harsh, bloom, 86 s evasive swerve, rain, 103 s PARK
     [switch]$KeepRunning
 )
 $ErrorActionPreference = 'Continue'
