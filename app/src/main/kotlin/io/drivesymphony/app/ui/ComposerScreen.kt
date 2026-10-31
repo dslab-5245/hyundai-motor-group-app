@@ -163,6 +163,7 @@ fun ComposerScreen(
                 StatRow("Vehicle SDK", if (ui.vehicleLive) "수신 중" else "대기")
                 StatRow("NaviHelper", if (ui.naviLive) "수신 중" else "내비 미실행")
                 StatRow("주행 제한(UX)", if (ui.restricted) "주행 중 화면" else "정차 화면")
+                StatRow("뒷좌석", if (ui.rearSeat) "탑승 → 강도 '약'" else "비어 있음")
                 StatRow("오디오 부하", if (ui.playing) "1코어의 %.1f%%".format(ui.engineLoad * 100) + (if (ui.light) " · 라이트 프로파일" else "") else "대기")
             }
             if (ui.history.isNotEmpty()) Card {

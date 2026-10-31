@@ -82,6 +82,8 @@ data class ServiceUiState(
     val light: Boolean = false,
     /** audio-thread render load as a fraction of one core */
     val engineLoad: Float = 0f,
+    /** a rear seat is occupied (feedback level forced to gentle while true) */
+    val rearSeat: Boolean = false,
 )
 
 /**
@@ -190,6 +192,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 if (rear != rearOccupiedApplied) {
                     rearOccupiedApplied = rear
                     engine.setFeedbackLevel(if (rear) 0 else settings.feedbackLevel)
+                    Log.i(TAG, "rear seat ${if (rear) "occupied -> feedback gentle" else "empty -> feedback level ${settings.feedbackLevel}"}")
+                    _ui.update { it.copy(rearSeat = rear) }
                 }
                 trackTrip(snap.gear, snap.speedKmh)
                 guardLoad(dt)
