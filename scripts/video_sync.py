@@ -97,7 +97,7 @@ STORY_CAPTIONS = [   # (story time start, end, text): the demo scenario timeline
     (86.0, 89.5, "급조향 1회 → 긴급 회피로 봅니다: 짧게 숨만 고르고 돌아옵니다"),
     (90.0, 98.0, "와이퍼 → 비 텍스처와 셰이커가 더해집니다"),
     (99.0, 103.0, "제동 · 정차"),
-    (103.5, 112.0, "주차(P) → 오늘 당신이 연주한 곡: 여정의 곡 카드"),
+    (103.5, 112.0, "주차(P) → 마무리 코드로 끝나고, 작곡실(정차 화면)에 '여정의 곡' 카드가 남습니다"),
 ]
 CUE_CAPTIONS = {   # Virtual Console cue steps (scripts/virtual-console.py cue) -> caption
     "1.": "에뮬레이터 Virtual Console · 실제 차량 신호 경로(SDK)\n기어 D, 핸들 가만히",
@@ -110,7 +110,7 @@ CUE_CAPTIONS = {   # Virtual Console cue steps (scripts/virtual-console.py cue) 
     "8.": "8초 안정 → 회복",
     "9.": "와이퍼 · 크루즈 → 비 텍스처 · 드론 베드",
     "10.": "뒷좌석 탑승 감지 → 피드백 강도 '약'으로",
-    "11.": "제동 · 주차(P) → 여정의 곡 카드",
+    "11.": "제동 · 주차(P) → 마무리 코드 · 작곡실에 여정의 곡 카드",
 }
 
 

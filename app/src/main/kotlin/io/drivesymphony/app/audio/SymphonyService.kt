@@ -137,6 +137,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private var lastMovingAtMs = 0L
     private var lastSags = 0
     private var tap: AudioTap? = null
+    private var tapFile: java.io.File? = null
     private var rearOccupiedApplied = false   // rear passengers -> feedback level forced to '약'
 
     override fun onCreate() {
@@ -355,6 +356,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
             // always inside the app's external files dir (adb pull /sdcard/Android/data/<pkg>/files/<name>); only the name of `path` is used
             val f = java.io.File(getExternalFilesDir(null), java.io.File(path.takeUnless { it.isNullOrBlank() } ?: "recording.wav").name)
             _ui.update { it.copy(recording = true) }
+            tapFile = f
             tap = AudioTap(f, SAMPLE_RATE).also { output.tap = it }
             Log.i(TAG, "recording started: ${f.absolutePath}")
         } else {
@@ -366,8 +368,9 @@ class SymphonyService : MediaBrowserServiceCompat() {
             }
             // publish the finished file (or, with no tap running, an earlier one named by `path`) to MediaStore Downloads:
             // the car runs apps as a secondary user whose storage adb cannot read directly, but `content read --user N` can
-            val name = java.io.File(path.takeUnless { it.isNullOrBlank() } ?: "recording.wav").name
-            publishRecording(java.io.File(getExternalFilesDir(null), name))
+            val f = if (t != null) tapFile else null
+            tapFile = null
+            publishRecording(f ?: java.io.File(getExternalFilesDir(null), java.io.File(path.takeUnless { it.isNullOrBlank() } ?: "recording.wav").name))
         }
     }
 

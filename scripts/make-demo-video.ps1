@@ -31,7 +31,8 @@ function Now { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
 function Pull-Recording([string]$name, [string]$dest) {
     $user = ((Adb shell am get-current-user) | Out-String).Trim()
     if (-not $user) { $user = '0' }
-    $row = (Adb shell content query --user $user --uri content://media/external/downloads --projection _id:_display_name --where "\"_display_name='$name'\"" | Out-String)
+    # no --where: its quoting does not survive PowerShell -> adb -> shell; the list is short, match the name here
+    $row = (Adb shell content query --user $user --uri content://media/external/downloads --projection _id:_display_name 2>$null | Where-Object { $_ -match "_display_name=$name\b" } | Select-Object -First 1 | Out-String)
     if ($row -match '_id=(\d+)') {
         $id = $Matches[1]
         & cmd /c "`"$adb`" exec-out content read --user $user --uri content://media/external/downloads/$id > `"$dest`""
@@ -89,7 +90,7 @@ function Record-Segment([string]$name, [int]$limitSec, [scriptblock]$action) {
     $timing["${name}_record"] = Now
     Adb shell am startservice -n $svc -a io.drivesymphony.action.RECORD --ez on true --es path $wav | Out-Null
     & $action
-    Adb shell am startservice -n $svc -a io.drivesymphony.action.RECORD --ez on false | Out-Null
+    Adb shell am startservice -n $svc -a io.drivesymphony.action.RECORD --ez on false --es path $wav | Out-Null   # off + publish to MediaStore
     $timing["${name}_record_off"] = Now
     Start-Sleep -Seconds 2
     Adb shell pkill -INT screenrecord | Out-Null      # SIGINT lets screenrecord finalise the mp4
