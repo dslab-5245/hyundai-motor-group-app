@@ -37,7 +37,7 @@ drive-symphony/
 요구: JDK 17, Android Studio(Android SDK 35, Pleos Connect 에뮬레이터 v2.1.0). Android SDK가 없으면 `:app`은 자동으로 제외되고 엔진만 빌드된다.
 
 ```bash
-# 엔진 단위 테스트 (40개) + 프리뷰 WAV 9개 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
+# 엔진 단위 테스트 (40개) + 프리뷰 WAV 11개(장르×주행 9 + A/B 2) 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
 ./gradlew :engine:test :engine:renderPreviews
 # 제출 전 정합성 점검: Gleo 스키마 = 매니페스트 액션 = 서비스 상수, 패키지명, 장르 enum, 권한 집합, README 테스트 수
 python -I scripts/check_consistency.py

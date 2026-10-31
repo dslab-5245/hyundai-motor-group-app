@@ -56,7 +56,7 @@ Drive Symphony turns driving into a live score. Steering, braking, turn signals,
 | `pleos.car.permission.CAR_DRIVE` | 조향각·브레이크 페달·기어·주행 모드·크루즈 상태 → 채점·패닝·에너지·드론 | `signals/PleosVehicleSource.kt` |
 | `pleos.car.permission.CAR_LIGHTS` | 방향지시등 → 깜빡이 규율 채점, 림 클릭·보상 레이어 | `signals/PleosVehicleSource.kt` |
 | `pleos.car.permission.CAR_WINDOWS` | 앞유리 와이퍼 → 비 텍스처, "비 오는" 제목 | `signals/PleosVehicleSource.kt` |
-| `pleos.car.permission.CAR_SEATS` | 좌석 점유·안전벨트 → 뒷좌석 탑승 시 피드백 강도 자동 '약', 벨트 미착용 시 시작 보류 | `signals/PleosVehicleSource.kt` |
+| `pleos.car.permission.CAR_SEATS` | 좌석 점유·안전벨트 → 뒷좌석 탑승 시 피드백 강도 자동 '약', 주행 중 벨트 해제 시 흐름 상한 0.4 | `signals/PleosVehicleSource.kt` |
 | `pleos.car.permission.NAVI_ROUTE` | 현재 위치(속도 추정)·도로명·제한속도·다음 회전·주의 구간 → 과속·회전 예고 규칙, 곡 제목 | `signals/PleosNaviSource.kt` (`getCurrentLocationInfo()`가 이 권한을 검사) |
 | `android.car.permission.CAR_POWERTRAIN` | android.car `GEAR_SELECTION` 속성 (Vehicle SDK 2.3.2가 기어 리스너 대신 권고) → 트립 시작/종료, 주행 화면 전환 | `signals/CarPropertyGearSource.kt` |
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS` | 미디어 재생 포그라운드 서비스와 재생 알림 | `audio/SymphonyService.kt` |
@@ -67,7 +67,7 @@ Drive Symphony turns driving into a live score. Steering, braking, turn signals,
 
 | 항목 | 내용 | 보관 |
 |---|---|---|
-| 여정 요약 | 제목(도로명 포함)·길이·평균 Flow·최장 부드러운 구간·마디 수·장르·이벤트 수 | 최근 10개, 앱 전용 저장소 |
+| 여정 요약 | 제목(도로명 포함)·길이·평균 Flow·최장 부드러운 구간·마디 수·장르·감점 이벤트 개수 | 최근 10개, 앱 전용 저장소 |
 | 설정 | 장르·피드백 강도·자동 시작·데모 모드·리믹스 음원 URI | 앱 전용 저장소 |
 | 공유 카드 PNG | 사용자가 공유를 누른 순간만 생성 | `cache/share/`, FileProvider로 선택한 앱에만 전달 |
 
@@ -90,7 +90,7 @@ Drive Symphony turns driving into a live score. Steering, braking, turn signals,
 2. 에뮬레이터 Virtual Console: **Steering**을 돌리면 패닝, **Brake**를 짧게 3번 연타하면 0.15초 안에 음악이 가라앉고 글랜스의 Flow 링이 주황으로 숨쉰다. 5초간 가만히 두면 레이어가 돌아온다.
 3. **Turn signal** 켜고 조향 → 글랜스에 "깜빡이 좋아요" + 레이어 하나 추가. **Wiper ON** → 비 텍스처. **Gear P** → 여정의 곡 카드.
 4. 차량 신호 입력이 어려우면 작곡실 → **데모 시나리오** → "시연 스토리"(106초). 주행 화면에 DEMO 표시가 붙으며, 작곡실에서 끌 때까지 유지된다.
-5. 주행 제한: 에뮬레이터에서 기어 D(또는 `adb shell cmd car_service` 로 UX 제한)로 바꾸면 설정이 닫히고 글랜스만 남는다.
+5. 주행 제한: 재생 중 기어를 D로 바꾸면(또는 차량의 UX 제한이 켜지면) 설정이 닫히고 글랜스만 남는다.
 6. 오디오 포커스: 다른 미디어 앱을 재생하면 멈추고, 내비 안내 중에는 −12 dB로 줄었다가 돌아온다.
 7. 음성: Gleo에서 위 4개 발화. 응답은 `io.drivesymphony.GLEO_CALLBACK` 브로드캐스트로도 확인 가능.
 8. 부하: `adb shell top -n 1 | grep drivesymphony`. 작곡실 '오디오 부하' 행에 합성 부하와 라이트 프로파일 여부가 표시된다.
