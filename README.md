@@ -7,7 +7,7 @@
 ```
 drive-symphony/
 ├─ engine/   순수 Kotlin/JVM 음악 엔진 (Android 의존 없음, 어디서나 빌드·테스트)
-│   ├─ dsp/        오실레이터·필터·ADSR·딜레이·테이프 워블·비트크러시·리버브·리미터
+│   ├─ dsp/        오실레이터·필터·ADSR·딜레이·테이프 워블·테이프 새그·더커(사이드체인)·비트크러시·리버브·테이프 새추레이션·글루 컴프레서·리미터
 │   ├─ theory/     코드 퀄리티·보이싱·장르별 진행·키 선택
 │   ├─ music/      악기(FM 일렉피아노·베이스·패드·드럼·텍스처), 16스텝 스윙 클락, 어레인저
 │   ├─ director/   DrivingSignals → DrivingScorer(flow 점수) → MusicDirector(음악 파라미터)
@@ -15,7 +15,7 @@ drive-symphony/
 │   ├─ scenario/   스크립트 주행(안전/거친/시연 스토리) — 테스트·데모·프리뷰용
 │   └─ tools/      PreviewMain: 장르×시나리오 WAV 렌더링
 └─ app/      Android Automotive(Pleos Connect) 앱
-    ├─ audio/      SymphonyService(포그라운드 미디어 서비스·MediaSession·오디오 포커스), AudioOutput(AudioTrack float)
+    ├─ audio/      SymphonyService(포그라운드 미디어 서비스·MediaSession·오디오 포커스), AudioOutput(AudioTrack float, 적응형 버퍼), AudioTap(시연 영상용 WAV 녹음 탭)
     ├─ signals/    PleosVehicleSource(Vehicle SDK 2.3.2) · CarPropertyGearSource(android.car GEAR_SELECTION) · PleosNaviSource(NaviHelper 3.0.5) · ScenarioSource(데모)
     ├─ remix/      LocalTrackPlayer(MediaCodec 디코드 → 48 kHz 스테레오 float)
     ├─ ui/         FlowScreen(주행 중 글랜스 화면) · ComposerScreen(정차 화면) · Theme(야간 기본 + 주간 팔레트, 차량 야간 모드 추종)
@@ -26,7 +26,7 @@ drive-symphony/
 
 1. **신호 수집** — Vehicle SDK 리스너 9종 + NaviHelper 콜백 6종을 `SignalStore`에 모아 25 Hz로 스냅샷.
 2. **점수화** — `DrivingScorer`가 조향 변화율, 브레이크 토글 패턴, 깜빡이 규율, 제한속도 대비 속도(내비 위치 미분), 스쿨존, 안전벨트를 보고 **flow(0~1)** 를 만든다. 하강은 0.6 s, 상승은 5 s. 30초 이상 무사고 후의 첫 급조작과 그 뒤 2.5초 안의 조작은 **긴급 회피로 간주해 감점·펄스 절반**(끼어들기 회피 = 급조향+급제동 한 묶음; 측정: 최저 flow 0.81 vs 같은 조작이 습관일 때 0.61). 과속은 추정 속도가 잡음이므로 **2초 이상 지속**될 때만 반영(내비의 카메라 과속 알림은 즉시). 주차·후진 중엔 채점하지 않는다. 바닥은 0.1 (완전 침묵 없음). 뒷좌석에 사람이 타면 피드백 강도가 자동으로 '약'이 되고 내리면 돌아온다.
-3. **음악화** — `MusicDirector`가 flow를 밀도(레이어 수)·컷오프·테이프 워블·바이닐·크러시·리버브·스테레오 폭·게인·화성 확장·멜로디(bloom)로 매핑한다. 급조작 펄스는 **120 ms** 안에 들리고(`EngineResponseTest`: 같은 시드 A/B 렌더에서 이벤트 후 오디오 -3 dB·컷오프 반감까지 120 ms), 회복은 천천히.
+3. **음악화** — `MusicDirector`가 flow를 밀도(레이어 수)·컷오프·테이프 워블·바이닐·크러시·리버브·스테레오 폭·게인·화성 확장·멜로디(bloom)로 매핑한다. 급조작 펄스는 **120 ms** 안에 들리고(`EngineResponseTest`: 같은 시드 A/B 렌더에서 이벤트 후 오디오 -3 dB·컷오프 반감까지 120 ms), 회복은 천천히. **음악적 제스처**(2026-10-31): 유예되지 않은 감점마다 **테이프 새그**(마스터가 0.35초 동안 테이프가 늘어지듯 음정·템포가 함께 가라앉았다 20 ms 크로스페이드로 제자리로; 리버브 앞단이라 꼬리는 실시간을 지켜 복귀가 티 나지 않음 — 벨트 알림·긴급 회피는 제외), 로파이에서는 킥마다 패드·키·베이스가 숨 쉬는 **사이드체인 펌핑**(2 ms 어택·130 ms 릴리스), 8마디 섹션 끝의 **노이즈 라이저**(필터 400→6 kHz 스윕, 다음 다운비트에서 정확히 멈춤), 멜로디가 처음 열리는 마디의 **스웰**. 마스터는 테이프 새추레이션(장르별 드라이브 1.15~1.5) → 스테레오 링크 **글루 컴프레서**(10 ms/250 ms, 2.2:1, 임계 0.30) → 디렉터 트림 → 리미터 순서다: 압축은 고정 프로그램 레벨에서 일어나고 '가라앉음' 트림은 그 뒤라 반응 폭이 깎이지 않는다(`EngineResponseTest` 120 ms 그대로). 같은 패스에서 분수 딜레이 보간이 과거 샘플 쪽으로 기울어 있던 버그를 고쳤다(워블·새그처럼 딜레이가 움직일 때 0~2샘플 톱니 지터 = 테이프 워블의 거친 질감). `EngineGestureTest` 6개(총 49개).
 4. **연주** — `Arranger`가 마디마다 장르 규칙(로파이 스윙 58%, 재즈 트리오 워킹베이스·라이드, 앰비언트 패드·아르페지오)으로 이벤트를 만들고 `SymphonyEngine`이 샘플 단위로 합성한다. 와이퍼=비 텍스처·셰이커, 깜빡이=비트 위 림 클릭(켜고 회전하면 다음 2마디 동안 레이어 하나 추가), 조향=패닝, 주행모드=에너지, 크루즈=드론(코드 루트 위의 디튠 톱니 베드, 2초 페이드).
    **형식**: 8마디 섹션 A-A-B-A(같은 키의 두 진행, 재즈 B는 트라이톤 대리), 섹션 끝 필(로파이 스네어 빌드·재즈 브러시 드래그·앰비언트 스웰), 첫 2마디 인트로(드럼 없음), 8마디마다 4음 모티프를 만들어 앞 4마디는 제시·뒤 4마디는 응답(call & response). **스테레오**: EP 피치 패닝, 드러머 시점 햇/라이드 패닝, 멜로디 마이크로 더블러 — 안전 주행 시 좌우 상관 0.71~0.87(이전 0.94~0.98), RMS 약 -14 dBFS.
 5. **기존 음악 변주하기** — 앱이 직접 재생하는 로컬 음원에 같은 flow 규칙을 건다(`TrackProcessor`: 로우패스·테이프 워블·크러시·리버브·M/S 폭·게인·리미터). 수치 검증(`TrackProcessorTest`): 안전 주행 시 원곡 대비 +0.15 dB·고역 유지 101%·좌우 상관 동일(사실상 무가공), 거친 주행 시 -5.8 dB·고역 5%·폭 축소(상관 0.72→0.81), 상태 전환 시 클릭 없음, 클리핑 없음.
@@ -37,7 +37,7 @@ drive-symphony/
 요구: JDK 17, Android Studio(Android SDK 35, Pleos Connect 에뮬레이터 v2.1.0). Android SDK가 없으면 `:app`은 자동으로 제외되고 엔진만 빌드된다.
 
 ```bash
-# 엔진 단위 테스트 (43개) + 프리뷰 WAV 11개(장르×주행 9 + A/B 2) 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
+# 엔진 단위 테스트 (49개) + 프리뷰 WAV 11개(장르×주행 9 + A/B 2) 렌더링 → previews/ (+ python -I scripts/analyze_previews.py 로 음량·폭·대역 수치 확인)
 ./gradlew :engine:test :engine:renderPreviews
 # 제출 전 정합성 점검: Gleo 스키마 = 매니페스트 액션 = 서비스 상수, 패키지명, 장르 enum, 권한 집합, README 테스트 수
 python -I scripts/check_consistency.py
@@ -54,7 +54,7 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 ## 시연 (에뮬레이터)
 
 1. 앱 실행 → 작곡실 탭 → **연주 시작**.
-2. Virtual Console에서 **Steering**을 천천히 돌리면 패닝, **Brake**를 짧게 반복하면 약 0.17초 안에(엔진 반응 0.12초 + 오디오 버퍼 48 ms: 에뮬레이터가 허용한 최소 2308프레임, 512프레임 블록) 음악이 가라앉고 Flow 링이 주황으로 숨쉰다. 5초간 가만히 두면 레이어가 하나씩 돌아온다.
+2. Virtual Console에서 **Steering**을 천천히 돌리면 패닝, **Brake**를 짧게 반복하면 음악이 테이프가 늘어지듯 가라앉고(엔진 반응 0.12초 + 오디오 버퍼: 차량은 4블록 43 ms로 시작해 언더런이 보고되면 85 ms까지 두 배씩 키우는 적응형, 에뮬레이터는 끊김이 더 중요해 처음부터 170 ms) Flow 링이 주황으로 숨쉰다. 차량 기준 약 0.16초, 에뮬레이터 약 0.3초. 5초간 가만히 두면 레이어가 하나씩 돌아온다.
 3. **Turn signal** 켜고 조향 → "깜빡이 좋아요" + 레이어 개방. **Wiper ON** → 비 텍스처. **Gear P** → 여정 요약 카드.
 4. 내비 없이 시연할 때는 작곡실 → **데모 시나리오** 켜기 → "시연 스토리"(106초: 시내 → 습관적 급조작 → 회복 → 고속 크루즈 만개 → 86초 긴급 회피 1회(유예: 숨만 고름) → 비 → 도착). 데모는 작곡실에서 끌 때까지 유지되며(기본 꺼짐) 주행 화면에 DEMO 표시가 붙는다.
 5. 리믹스: **내 음원 변주하기**로 USB/로컬 음원을 고르면 같은 flow 규칙으로 로우패스·워블·폭이 변한다.
@@ -67,7 +67,7 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 - 리믹스 모드는 **앱이 직접 재생하는 음원**에만 적용된다(스트리밍 앱의 오디오는 DRM·오디오 캡처 제한으로 처리 불가). 
 - TTS/STT/Vehicle Control SDK는 '준비 중'이라 사용하지 않는다. Gleo 연동은 공식 라디오 예제의 스키마 형식(`packageName`·`appDescription`·`actionCalls[].function{name,description,parameters,component}`)으로 `assets/schema.json`에 작성했고, 앱은 함수명을 액션으로 하는 인텐트의 `ACTION_PARAM`(JSON) extra를 받아 처리한 뒤 `functionName/status/message/data` 응답을 만든다. 응답 반환 채널은 공개 문서에 없어 브로드캐스트(`io.drivesymphony.GLEO_CALLBACK`)+로그로 두었고, Gleo 심사·활성화는 HMG 측 절차다.
 - Pleos Music/Audio 앱 규정 반영: MediaBrowserService + MediaSession(play/pause/stop/skip/playFromMediaId/playFromSearch), `android:appCategory="audio"`, `androidx.car.app.launchable`, 오디오 포커스 정책(LOSS 즉시 정지·포커스 반납, LOSS_TRANSIENT(Gleo·통화) 즉시 정지 후 GAIN 시 재개, CAN_DUCK 앱 자체 -12 dB 램프 감쇠), 작업 스와이프 시 stop→stopSelf→super, 주행 중 화면은 애니메이션 없이 단계값만 갱신(5점 단위 Flow 링·on/off 할로).
-- 주행 중 비내비 앱 CPU 예산(5% 미만)은 에뮬레이터/실차에서 측정해야 한다. 데스크톱 JVM 실측은 단일 코어 1.0~1.3%(장르별; 4096점 사인 테이블·필터 계수 캐시·곱셈 포락선·재귀 LFO로 2.3~2.8%에서 절반으로 줄였고 소리는 동일). 차량에서 예산을 넘기면 자동으로 **라이트 프로파일**로 내려간다: 오디오 스레드가 자기 렌더 부하를 재서 4%를 3초 넘기면 리버브를 1채널(미드) 공유로 바꾸고 멜로디 더블러를 끈다(0.3초 크로스페이드, 측정 클릭 0·음량 차 0.02 dB, 비용 −7~8%); 2% 아래로 60초면 복귀. 작곡실 '오디오 부하' 행과 logcat `engine load`로 확인하고, 구성요소별 비용은 `EngineCostBreakdownTest` 출력(COST 행)으로 본다. **에뮬레이터 실측(2026-10-31, release APK, Pleos Connect v2.1.0 x86_64 4 vCPU, 소프트웨어 GPU)**: 오디오 스레드 3.6~3.8%(FULL 4.0~5.2%(JIT 워밍업 직후)에서 가드가 라이트로 전환, 라이트 2.7~4.1%), UI(메인+RenderThread) 3.3~5.7%, 제어 루프 2.1~2.3%, 프로세스 합계 10.0~12.5%(1코어 기준 — 4 vCPU 장치 기준 2.5~3.1%), RSS 161~170 MB, 크래시 0. 측정은 `python -I scripts/cpu-share.py --adb <adb>`(/proc 기반 스레드별 30초 창)와 스모크 스크립트의 `cpu-share.txt`·`load-log.txt`(서비스가 10초마다 남기는 `audio load` 줄)로 재현한다. 릴리스 빌드는 `<profileable android:shell="true">`라 `adb shell simpleperf record --app io.drivesymphony.app`로 프로파일할 수 있다(오디오 스레드 상위: FM 타인 14%, 커널·JNI 쓰기 경로 ~20%, 리버브 5%). UI 몫은 소프트웨어 GPU 때문이며 차량 GPU에서는 작아진다; 그래도 주행 중에는 글랜스에 보이는 값(Flow 5점 단위·이벤트·레이어·5초 단위 캡션)이 바뀔 때만 상태를 발행해 재구성을 줄였다.
+- 주행 중 비내비 앱 CPU 예산(5% 미만)은 에뮬레이터/실차에서 측정해야 한다. 데스크톱 JVM 실측은 단일 코어 1.0~1.3%(장르별; 4096점 사인 테이블·필터 계수 캐시·곱셈 포락선·재귀 LFO로 2.3~2.8%에서 절반으로 줄였고 소리는 동일). 차량에서 예산을 넘기면 자동으로 **라이트 프로파일**로 내려간다: 오디오 스레드가 자기 렌더 부하를 재서 4%를 3초 넘기면 리버브를 1채널(미드) 공유로 바꾸고 멜로디 더블러를 끈다(0.3초 크로스페이드, 측정 클릭 0·음량 차 0.02 dB, 비용 −7~8%); 2% 아래로 60초면 복귀. 작곡실 '오디오 부하' 행과 logcat `engine load`로 확인하고, 구성요소별 비용은 `EngineCostBreakdownTest` 출력(COST 행)으로 본다. **에뮬레이터 실측(2026-10-31, release APK, Pleos Connect v2.1.0 x86_64 4 vCPU, 소프트웨어 GPU)**: 오디오 스레드 3.6~3.8%(FULL 4.0~5.2%(JIT 워밍업 직후)에서 가드가 라이트로 전환, 라이트 2.7~4.1%), UI(메인+RenderThread) 3.3~5.7%, 제어 루프 2.1~2.3%, 프로세스 합계 10.0~12.5%(1코어 기준 — 4 vCPU 장치 기준 2.5~3.1%), RSS 161~170 MB, 크래시 0. 측정은 `python -I scripts/cpu-share.py --adb <adb>`(/proc 기반 스레드별 30초 창)와 스모크 스크립트의 `cpu-share.txt`·`load-log.txt`(서비스가 10초마다 남기는 `audio load` 줄)로 재현한다. 릴리스 빌드는 `<profileable android:shell="true">`라 `adb shell simpleperf record --app io.drivesymphony.app`로 프로파일할 수 있다(오디오 스레드 상위: FM 타인 14%, 커널·JNI 쓰기 경로 ~20%, 리버브 5%). UI 몫은 소프트웨어 GPU 때문이며 차량 GPU에서는 작아진다; 그래도 주행 중에는 글랜스에 보이는 값(Flow 5점 단위·이벤트·레이어·5초 단위 캡션)이 바뀔 때만 상태를 발행해 재구성을 줄였다. **호스트 GPU 실측(2026-10-31 16:05 run, release, `-gpu host`, 같은 4 vCPU)**: 오디오 스레드 2.6~3.5%(FULL 유지, 라이트 전환 없음), 프로세스 합계 4.6~4.7%(1코어 기준), RSS 115~119 MB, AudioTrack 언더런 0(전 구간), 테이프 새그 14회가 이벤트와 함께 로그됨(`tape sag #n after HARSH_STEER`). 소프트웨어 GPU 수치는 UI 렌더링 몫이 큰 보수적 상한이고, 차량 GPU에서는 호스트 GPU 쪽에 가깝다.
 
 ## 제출 자료
 
@@ -76,6 +76,7 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 - `store/listing.md` — 앱마켓 등록 텍스트: 한 줄 소개·설명(한/영)·주행 중 UX 선언·권한 사용 사유·로컬 저장 데이터·Gleo 명령·심사자 안내(차량 없이 확인하는 순서)·제약·오픈소스 고지. 블라인드 심사 규정에 맞춰 개발자 정보 없음.
 - `previews/lofi_ab_clean.wav`·`lofi_ab_event.wav` — 같은 시드·같은 주행의 A/B 음원(30초). 20.0초까지 샘플 단위로 동일하고 20.3초의 브레이크 찍기 뒤 120 ms 안에 갈라진다(`gradlew :engine:renderPreviews`).
 - 스크린샷(2560×1380 등)은 에뮬레이터 스모크 스크립트(`scripts/emulator-smoke.ps1`)가 `build/smoke/<ts>/screen_*.png`로 저장한다.
+- **시연 영상·숏폼**: `powershell -ExecutionPolicy Bypass -File scripts\make-demo-video.ps1` 한 번이면 에뮬레이터를 띄워 데모 스토리(106초)와 Virtual Console 큐시트(85초)를 `adb screenrecord`(1080p)로 녹화하고, 앱의 `RECORD` 액션(`AudioTap`)이 렌더 블록을 그대로 WAV로 남긴다(에뮬레이터 스피커를 녹음하지 않으므로 끊김·지연 없음). 글랜스의 ● REC 배지가 클래퍼보드: `scripts/video_sync.py`가 배지가 처음 보이는 프레임을 찾아 WAV 샘플 0에 맞추고, EBU R128 라우드니스를 −16 LUFS로 맞춘 뒤 한글 자막(시나리오 타임라인·큐 로그 기반)·타이틀 카드와 함께 `build/video/<ts>/demo_video_16x9.mp4`(약 3분 40초)와 `short_9x16.mp4`(45초, 해시태그 포함)를 만든다. 콘티·AI B-roll 프롬프트·합성 방법은 `video/STORYBOARD.md`.
 
 ## 에뮬레이터 검증 (2026-10-31, release APK)
 
@@ -86,6 +87,8 @@ Pleos 에뮬레이터 설정은 `docs`/공모전 문서 참고 (SDK Update Site:
 - **좌석 점유 보정**: Vehicle SDK 2.3.2는 `SEAT_OCCUPANCY`의 Boolean을 `raw == 1`로 만드는데 AOSP·Virtual Console의 1은 VACANT, 2는 OCCUPIED다(콘솔 'Occupied' = 2 확인). 앱은 콜백을 반대로 읽고(`PleosVehicleSource`), `rear seat occupied -> feedback gentle` / `empty` 로그로 토글이 그대로 따라오는 것을 확인했다.
 - **속도·안전벨트 보정(실신호 검증에서 발견)**: 에뮬레이터의 내비 엔진은 한 좌표를 1 Hz로 반복 보고해 추정 속도가 정확히 0이 되고, 채점기가 '저속(15 km/h 미만)'으로 보고 급조향·브레이크 이벤트를 모두 억제했다. 또 에뮬레이터는 운전석 벨트를 채울 방법이 없어(콘솔 카탈로그에 SEAT_BELT_BUCKLED 없음, `cmd car_service`는 user 빌드에서 거부) 벨트 규칙이 Flow를 40에 묶고 있었다. 수정: 같은 좌표가 8초 이상 반복되면 속도를 '모름'으로(`SpeedEstimator`, 실제 수신기는 정차 중에도 수 m 흔들린다), 속도를 모를 때는 급조향 기준만 1.5배로 올리고 이벤트는 그대로 채점, 벨트는 '알려진 주행 속도(>15 km/h)'에서만 30초마다 짧게 가라앉는 알림으로(상한 없음, 긴급 회피로 오독 안 함). 데모를 끄면 데모가 쓴 신호를 모두 돌려주고 차량 소스를 재등록한다. 검증: 콘솔 조향 −220°·브레이크 3연타에 `drive event HARSH_STEER / BRAKE_PUMP` 로그와 글랜스 캡션('브레이크 반복 · 음악이 잠시 가라앉아요', Flow 80)이 따라왔다. 테스트 3개 추가(43개).
 - CPU·메모리: 위 '제약과 정직한 표시'의 실측 문단. 스크린샷은 `store/screenshots/*_2560x1380.png`(글랜스·작곡실·Gleo 재즈 전환·실신호 구간).
+- **제스처 패스(16:05 run, `build/smoke/20261031-160542/`)**: 테이프 새그·펌핑·라이저·글루가 들어간 release APK로 같은 스모크를 다시 돌려 크래시 0·언더런 0·오디오 2.6~3.5%를 확인했고, 콘솔 조향 −220°·브레이크 연타마다 `tape sag #n after HARSH_STEER/BRAKE_STAB/BRAKE_PUMP`가 이벤트 로그와 같은 틱에 찍혔다(14회). 유예된 회피(`HARSH_STEER (graced)`)에는 새그가 없다.
+- **앱이 내비 뒤로 숨는 현상**: Pleos 홈은 부팅 1~2초 뒤 내비 앱을 앱 슬롯에 올리는데, 그 직전에 띄운 앱은 그 뒤로 가려져 화면이 빈 회색으로 찍힌다(이 run의 스크린샷에서 발견; 서비스·오디오는 정상). 스모크·try-it·영상 스크립트는 실행 뒤 스크린샷의 앱 영역이 평평한 회색이면 액티비티를 다시 띄운다(`Ensure-Front`).
 
 ## 라이선스
 

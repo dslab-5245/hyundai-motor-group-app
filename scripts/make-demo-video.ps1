@@ -11,7 +11,8 @@ param(
     [switch]$Window,
     [switch]$SoftwareGpu,
     [switch]$KeepRunning,
-    [switch]$NoSync
+    [switch]$NoSync,
+    [string]$Genre = 'LOFI'   # the app remembers the last genre (e.g. the smoke's Gleo JAZZ step); the video uses this one
 )
 $ErrorActionPreference = 'Continue'
 $sdk = 'C:\Users\user\dev-tools\android-sdk'
@@ -74,6 +75,9 @@ Adb install -r -g $Apk | Out-Null
 Adb forward tcp:18088 tcp:8088 | Out-Null
 Adb logcat -c | Out-Null
 if (-not (Ensure-Front)) { Write-Host "app not visible; aborting" -ForegroundColor Red; exit 3 }
+# fixed genre for the video (Gleo setGenre action; --% passes the JSON extra untouched)
+$genreArg = '{\"genre\":\"' + $Genre + '\"}'
+& $adb shell am startservice -n $svc -a setGenre --es ACTION_PARAM "'$genreArg'" | Out-Null
 Start-Sleep -Seconds 2
 
 # One recorded segment: screenrecord running, then the WAV tap (REC badge = sync mark), then the action, then both stopped.

@@ -352,7 +352,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
     fun setRecording(on: Boolean, path: String? = null) {
         if (on) {
             if (tap != null) return
-            val f = if (path.isNullOrBlank()) java.io.File(getExternalFilesDir(null), "recording.wav") else java.io.File(path)
+            // always inside the app's external files dir (adb pull /sdcard/Android/data/<pkg>/files/<name>); only the name of `path` is used
+            val f = java.io.File(getExternalFilesDir(null), java.io.File(path.takeUnless { it.isNullOrBlank() } ?: "recording.wav").name)
             _ui.update { it.copy(recording = true) }
             tap = AudioTap(f, SAMPLE_RATE).also { output.tap = it }
             Log.i(TAG, "recording started: ${f.absolutePath}")

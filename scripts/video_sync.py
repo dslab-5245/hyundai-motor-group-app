@@ -45,6 +45,7 @@ def find_badge(mp4, seconds=25):
         buf = p.stdout.read(n)
         if len(buf) < n: break
         f = np.frombuffer(buf, dtype=np.uint8).reshape(h, w, 3).astype(np.int16)
+        f = f[55:455, 330:940]   # the app pane only: the Pleos cluster / climate bar have pure-red glyphs of their own
         red = (f[:, :, 0] > 170) & (f[:, :, 1] < 110) & (f[:, :, 2] < 120) & (f[:, :, 0] - f[:, :, 1] > 80)
         c = int(red.sum())
         streak = streak + 1 if 10 <= c <= 4000 else 0
@@ -85,7 +86,7 @@ def srt(path, cues):
 
 
 STORY_CAPTIONS = [   # (story time start, end, text): the demo scenario timeline (engine/.../Scenarios.kt story)
-    (0.5, 6.0, "저녁의 강변북로 · 로파이\n시동과 함께 '이 길의 테마'가 시작됩니다"),
+    (0.5, 6.0, "강변북로 · 로파이\n출발과 함께 '이 길의 테마'가 시작됩니다 — 같은 길은 같은 테마"),
     (6.0, 12.5, "깜빡이를 켜고 도는 회전 → 즉시 보상: 레이어 하나가 더 열립니다"),
     (13.0, 19.5, "부드럽게 달릴수록 베이스·키·드럼이 차례로 쌓입니다"),
     (20.0, 28.0, "브레이크 반복(습관) → 음악이 잠시 가라앉습니다\n테이프가 늘어지듯 가라앉고, 필터가 닫힙니다 · 침묵은 없습니다"),
