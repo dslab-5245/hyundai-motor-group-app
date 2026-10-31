@@ -358,11 +358,35 @@ class SymphonyService : MediaBrowserServiceCompat() {
             tap = AudioTap(f, SAMPLE_RATE).also { output.tap = it }
             Log.i(TAG, "recording started: ${f.absolutePath}")
         } else {
-            val t = tap ?: return
-            output.tap = null; tap = null
-            t.close()
-            _ui.update { it.copy(recording = false) }
+            val t = tap
+            if (t != null) {
+                output.tap = null; tap = null
+                t.close()
+                _ui.update { it.copy(recording = false) }
+            }
+            // publish the finished file (or, with no tap running, an earlier one named by `path`) to MediaStore Downloads:
+            // the car runs apps as a secondary user whose storage adb cannot read directly, but `content read --user N` can
+            val name = java.io.File(path.takeUnless { it.isNullOrBlank() } ?: "recording.wav").name
+            publishRecording(java.io.File(getExternalFilesDir(null), name))
         }
+    }
+
+    private fun publishRecording(f: java.io.File) {
+        if (!f.exists() || android.os.Build.VERSION.SDK_INT < 29) return
+        runCatching {
+            val resolver = contentResolver
+            val collection = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+            // replace an earlier copy with the same name
+            resolver.delete(collection, "${android.provider.MediaStore.Downloads.DISPLAY_NAME} = ?", arrayOf(f.name))
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, f.name)
+                put(android.provider.MediaStore.Downloads.MIME_TYPE, "audio/wav")
+                put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/DriveSymphony")
+            }
+            val uri = resolver.insert(collection, values) ?: error("insert returned null")
+            resolver.openOutputStream(uri)!!.use { out -> f.inputStream().use { it.copyTo(out) } }
+            Log.i(TAG, "recording published: $uri (${f.length() / 1024} KB)")
+        }.onFailure { Log.w(TAG, "recording publish failed", it) }
     }
 
     fun setDemo(enabled: Boolean, scenarioId: String = settings.demoScenarioId) {

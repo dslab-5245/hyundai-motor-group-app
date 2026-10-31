@@ -226,7 +226,7 @@ def main():
     parts = [card("intro", ["Drive Symphony", "주행이 연주가 되는 차"],
                   5.0, sub=["차량 신호가 실시간으로 작곡하는 로파이 · 재즈 · 앰비언트", "부드럽게 달릴수록 음악이 풍성해집니다"])]
     if "story" in results:
-        parts.append(card("story", ["시연 1 · 데모 시나리오", "106초 · 저녁의 강변북로 · 시내 → 습관적 급조작 → 회복 → 고속도로 → 회피 → 비 → 도착"], 4.0))
+        parts.append(card("story", ["시연 1 · 데모 시나리오", "106초 · 강변북로 · 시내 → 습관적 급조작 → 회복 → 고속도로 → 회피 → 비 → 도착"], 4.0))
         parts.append(results["story"][1])
     if "console" in results:
         parts.append(card("console", ["시연 2 · 실제 차량 신호", "Pleos Connect 에뮬레이터 Virtual Console → Vehicle SDK → 음악 (데모 꺼짐)"], 4.0))

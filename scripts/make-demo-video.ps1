@@ -26,34 +26,32 @@ if (-not $Out) { $Out = Join-Path $repo ("build\video\" + (Get-Date -Format 'yyy
 New-Item -ItemType Directory -Force $Out | Out-Null
 function Adb { & $adb @args }
 function Now { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
+# The app runs as a secondary user on Pleos (10): adb cannot read that user's files, so the service publishes the WAV
+# to MediaStore Downloads and we stream it out through the content provider (cmd redirection keeps it binary-safe).
+function Pull-Recording([string]$name, [string]$dest) {
+    $user = ((Adb shell am get-current-user) | Out-String).Trim()
+    if (-not $user) { $user = '0' }
+    $row = (Adb shell content query --user $user --uri content://media/external/downloads --projection _id:_display_name --where "\"_display_name='$name'\"" | Out-String)
+    if ($row -match '_id=(\d+)') {
+        $id = $Matches[1]
+        & cmd /c "`"$adb`" exec-out content read --user $user --uri content://media/external/downloads/$id > `"$dest`""
+    } else { Write-Host "   recording '$name' not found in MediaStore (user $user): $row" -ForegroundColor Yellow }
+}
 $timing = @{}
 
 # The Pleos home puts the navigation app into the app slot a second or two after boot; an app launched before that
-# ends up hidden behind it (blank grey pane). Launch, verify the pane really shows our UI (screenshot: the pane is a
-# flat grey when another task covers us; our screens have text, ring and chips), relaunch while it does not.
-function Ensure-Front([int]$tries = 5) {
-    Add-Type -AssemblyName System.Drawing
+# ends up hidden behind it. Launch, then check that OUR activity is the slot's resumed one (the first
+# `topResumedActivity=` line of `dumpsys activity activities` is the app-slot display); relaunch while it is not.
+function Ensure-Front([int]$tries = 6) {
     for ($k = 0; $k -lt $tries; $k++) {
         Adb shell am start -n "$pkg/.MainActivity" | Out-Null
         Start-Sleep -Seconds 4
-        Adb shell screencap -p /sdcard/ds_front.png | Out-Null
-        Adb pull /sdcard/ds_front.png "$env:TEMP\ds_front.png" | Out-Null
-        $flat = $true
-        try {
-            $bmp = [System.Drawing.Bitmap]::FromFile("$env:TEMP\ds_front.png")
-            $lo = 255; $hi = 0
-            for ($x = 950; $x -lt 2500; $x += 80) { for ($y = 180; $y -lt 1200; $y += 85) {
-                $c = $bmp.GetPixel($x, $y); $l = [int](0.3 * $c.R + 0.59 * $c.G + 0.11 * $c.B)
-                if ($l -lt $lo) { $lo = $l }; if ($l -gt $hi) { $hi = $l }
-            } }
-            $bmp.Dispose()
-            $flat = ($hi - $lo) -lt 10
-        } catch { $flat = $false }
-        if (-not $flat) { return $true }
-        Write-Host "   app pane is flat grey (another task covers the app) -> relaunching" -ForegroundColor Yellow
+        $top = (Adb shell dumpsys activity activities 2>$null | Select-String -Pattern 'topResumedActivity=' | Select-Object -First 1 | Out-String).Trim()
+        if ($top -match 'io\.drivesymphony\.app') { return $true }
+        Write-Host "   another task is in front ($top) -> relaunching" -ForegroundColor Yellow
         Start-Sleep -Seconds 3
     }
-    Write-Host "   WARNING: the app pane still looks blank" -ForegroundColor Red
+    Write-Host "   WARNING: the app is still not the resumed activity of the app slot" -ForegroundColor Red
     return $false
 }
 
@@ -98,7 +96,7 @@ function Record-Segment([string]$name, [int]$limitSec, [scriptblock]$action) {
     $rec.WaitForExit(30000) | Out-Null
     Start-Sleep -Seconds 2
     Adb pull $mp4 "$Out\ds_$name.mp4" | Out-Null
-    Adb pull $wav "$Out\ds_$name.wav" | Out-Null
+    Pull-Recording "ds_$name.wav" "$Out\ds_$name.wav"
     Get-Item "$Out\ds_$name.mp4", "$Out\ds_$name.wav" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host ("   {0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)) }
 }
 
