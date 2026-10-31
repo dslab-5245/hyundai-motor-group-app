@@ -8,7 +8,8 @@ param(
     [string]$Apk = "C:\Users\user\dev\drive-symphony\app\build\outputs\apk\debug\app-debug.apk",
     [int]$Seconds = 110,   # demo story is 106 s: 20 s calm, 20-28 harsh, bloom, 86 s evasive swerve, rain, 103 s PARK
     [switch]$RealSignals,  # after the demo: demo off, then drive the Virtual Console (scripts/virtual-console.py cue)
-    [switch]$KeepRunning
+    [switch]$KeepRunning,
+    [switch]$SoftwareGpu  # the default host GPU halves the CPU picture (software GL was 3-6 % of a core for the UI alone)
 )
 $ErrorActionPreference = 'Continue'
 $sdk = 'C:\Users\user\dev-tools\android-sdk'
@@ -38,10 +39,11 @@ function Threads($label) {
               Adb shell top -H -b -n 1 -p $p 2>$null | Select-String -Pattern 'TID|drivesymphony|Audio|Render|Dispatch|Executor|binder' | ForEach-Object { $_.Line } | Out-File (Join-Path $out 'threads.txt') -Append -Encoding utf8 }
 }
 
-Write-Host "== emulator boot (headless, swiftshader, cold)" -ForegroundColor Cyan
+Write-Host "== emulator boot (headless, cold, gpu = $(if ($SoftwareGpu) { 'swiftshader' } else { 'host' }))" -ForegroundColor Cyan
 $running = (Adb devices) -match 'emulator-'
 if (-not $running) {
-    Start-Process -FilePath $emu -ArgumentList @('-avd', 'pleos_connect', '-no-window', '-no-boot-anim', '-no-snapshot', '-gpu', 'swiftshader_indirect', '-accel', 'auto', '-memory', '4096', '-logcat-output', "$out\emulator-logcat.txt") -WindowStyle Hidden
+    $gpu = if ($SoftwareGpu) { 'swiftshader_indirect' } else { 'host' }
+    Start-Process -FilePath $emu -ArgumentList @('-avd', 'pleos_connect', '-no-window', '-no-boot-anim', '-no-snapshot', '-gpu', $gpu, '-accel', 'auto', '-memory', '4096', '-logcat-output', "$out\emulator-logcat.txt") -WindowStyle Hidden
 }
 Adb wait-for-device | Out-Null
 $booted = $false

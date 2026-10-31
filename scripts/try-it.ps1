@@ -4,7 +4,8 @@
 # Console (host http://127.0.0.1:18088 -> guest 8088), opens the app and, with -Demo, starts the demo story playing.
 param(
     [string]$Apk = "C:\Users\user\dev\drive-symphony\app\build\outputs\apk\release\app-release.apk",
-    [switch]$Demo
+    [switch]$Demo,
+    [switch]$SoftwareGpu   # default is the host GPU: on this machine the whole app drops from ~12 % to ~5 % of a core and audio stays gapless
 )
 $ErrorActionPreference = 'Continue'
 $sdk = 'C:\Users\user\dev-tools\android-sdk'
@@ -18,7 +19,8 @@ function Adb { & $adb @args }
 
 if (-not ((Adb devices) -match 'emulator-')) {
     Write-Host "== booting the Pleos emulator (window, cold boot: about 1-2 minutes)" -ForegroundColor Cyan
-    Start-Process -FilePath $emu -ArgumentList @('-avd', 'pleos_connect', '-no-boot-anim', '-no-snapshot', '-gpu', 'swiftshader_indirect', '-accel', 'auto', '-memory', '4096')
+    $gpu = if ($SoftwareGpu) { 'swiftshader_indirect' } else { 'host' }
+    Start-Process -FilePath $emu -ArgumentList @('-avd', 'pleos_connect', '-no-boot-anim', '-no-snapshot', '-gpu', $gpu, '-accel', 'auto', '-memory', '4096')
 }
 Adb wait-for-device | Out-Null
 for ($i = 0; $i -lt 180; $i++) {

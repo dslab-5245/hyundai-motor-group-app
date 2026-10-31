@@ -256,7 +256,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         }
         val light = engine.profile == RenderProfile.LIGHT
         loadLogSec += dt
-        if (synth && loadLogSec >= 10f) { loadLogSec = 0f; Log.i(TAG, "audio load ${"%.1f".format(load * 100)}% of one core (${if (light) "light" else "full"} profile)") }
+        if (synth && loadLogSec >= 10f) { loadLogSec = 0f; Log.i(TAG, "audio load ${"%.1f".format(load * 100)}% of one core (${if (light) "light" else "full"} profile), underruns ${output.underruns}") }
         // the load row is only visible in the parked composer and reads in 0.5 % steps: publish it in those steps, at most 1 Hz,
         // so the jitter of the EMA does not recompose the UI 25 times a second
         loadUiSec += dt

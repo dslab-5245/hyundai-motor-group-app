@@ -3,6 +3,7 @@ package io.drivesymphony.app.audio
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Build
 import android.os.Debug
 import android.os.Process
 import android.util.Log
@@ -24,6 +25,10 @@ class AudioOutput(
      */
     @Volatile var load = 0f
         private set
+    /** platform-reported output underruns since start (each one is an audible gap); the service logs them with the load. */
+    @Volatile var underruns = 0
+        private set
+    private val isEmulator = Build.HARDWARE.contains("ranchu") || Build.HARDWARE.contains("goldfish") || Build.FINGERPRINT.contains("generic")
     /** The render thread is alive (also while it is still finishing a blocking write after stop()). */
     val isRunning: Boolean get() = thread?.isAlive == true
     private var smoothGain = 1f   // audio-thread only; ~20 ms ramp toward duckGain so ducking never clicks
@@ -48,7 +53,11 @@ class AudioOutput(
         val block = FloatArray(blockFrames * 2)
         try {
             val minBuf = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_FLOAT)
-            val bufBytes = maxOf(minBuf, blockFrames * 2 * 4 * 4)   // 4 blocks (~43 ms at 512 frames): reaction stays well under 0.2 s
+            // Adaptive latency: allocate room for 8 blocks (~85 ms at 512 frames) but start with 4 (~43 ms); whenever the
+            // platform reports an underrun the effective size doubles up to the capacity. The emulator (software GPU,
+            // host audio through QEMU) starts at the capacity straight away: there, smooth audio matters more than 40 ms.
+            val capBytes = maxOf(minBuf, blockFrames * 2 * 4 * 8)
+            val startBytes = if (isEmulator) capBytes else maxOf(minBuf, blockFrames * 2 * 4 * 4)
             val t = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
@@ -63,14 +72,19 @@ class AudioOutput(
                         .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
                         .build()
                 )
-                .setBufferSizeInBytes(bufBytes)
+                .setBufferSizeInBytes(capBytes)
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
                 .build()
             track = t
+            var sizeFrames = t.setBufferSizeInFrames(startBytes / 8).let { if (it > 0) it else t.bufferSizeInFrames }
+            val capFrames = t.bufferCapacityInFrames
             // the real output latency budget: the buffer the platform actually granted (it may exceed the request)
-            Log.i(TAG, "AudioTrack buffer ${t.bufferSizeInFrames} frames = ${t.bufferSizeInFrames * 1000 / sampleRate} ms " +
-                "(requested ${bufBytes / 8} frames, min ${minBuf / 8}), block $blockFrames frames = ${blockFrames * 1000 / sampleRate} ms")
+            Log.i(TAG, "AudioTrack buffer $sizeFrames frames = ${sizeFrames * 1000 / sampleRate} ms of $capFrames capacity " +
+                "(min ${minBuf / 8}), block $blockFrames frames = ${blockFrames * 1000 / sampleRate} ms${if (isEmulator) ", emulator" else ""}")
+            var lastUnderruns = 0
+            var blocksSinceCheck = 0
+            val checkEvery = maxOf(1, sampleRate / blockFrames)   // about once a second
             t.play()
             // click-free start: ~200 ms of pre-roll silence (same technique Pleos recommends for voice prompts),
             // then the block gain ramps up from zero (~40 ms) instead of starting at full level.
@@ -91,6 +105,17 @@ class AudioOutput(
                 if (g < 0.999f) for (i in block.indices) block[i] *= g
                 val written = t.write(block, 0, block.size, AudioTrack.WRITE_BLOCKING)
                 if (written < 0) { Log.w(TAG, "AudioTrack write error $written"); break }
+                if (++blocksSinceCheck >= checkEvery) {
+                    blocksSinceCheck = 0
+                    val u = t.underrunCount
+                    if (u != lastUnderruns) {
+                        underruns = u
+                        val grown = if (sizeFrames < capFrames) t.setBufferSizeInFrames(minOf(capFrames, sizeFrames * 2)) else 0
+                        if (grown > 0) sizeFrames = grown
+                        Log.w(TAG, "audio underruns ${u - lastUnderruns} (total $u) -> buffer $sizeFrames frames = ${sizeFrames * 1000 / sampleRate} ms")
+                        lastUnderruns = u
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "audio loop failed", e)
