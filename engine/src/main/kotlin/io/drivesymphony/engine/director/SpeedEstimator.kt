@@ -15,21 +15,28 @@ import kotlin.math.sqrt
  *
  * Gaps longer than [maxGapSec] (navigation app paused, tunnel) and implausible jumps (> 250 km/h) restart the
  * estimate instead of producing a spike. A chord shorter than [stillChordM] over a full window reads as 0 km/h.
+ *
+ * A fix that repeats bit for bit for [frozenSec] is not a parked car (a real receiver jitters by metres, a
+ * map-matched one at least drifts): it is a simulator, or a receiver that stopped updating. The estimate then
+ * becomes unknown (null) instead of 0, so the scorer does not treat the car as crawling for ever. Measured on the
+ * Pleos emulator, whose navigation engine reports one fixed position at 1 Hz.
  */
 class SpeedEstimator(
     private val windowSec: Double = 4.0,
     private val alpha: Float = 0.5f,
     private val maxGapSec: Double = 3.0,
     private val stillChordM: Double = 12.0, // 12 m over 4 s = 11 km/h: below the scorer's 15 km/h low-speed gate anyway
+    private val frozenSec: Double = 8.0,
 ) {
     private class Fix(val t: Double, val lat: Double, val lon: Double)
     private val fixes = ArrayDeque<Fix>()
+    private var frozenSince = -1.0
 
     /** Latest estimate in km/h, null until two fixes at least 0.5 s apart have been seen (or after a gap). */
     var speedKmh: Float? = null
         private set
 
-    fun reset() { fixes.clear(); speedKmh = null }
+    fun reset() { fixes.clear(); speedKmh = null; frozenSince = -1.0 }
 
     /** Feeds one position fix (degrees, seconds on any monotonic clock) and returns the updated estimate. */
     fun push(lat: Double, lon: Double, tSec: Double): Float? {
@@ -40,6 +47,7 @@ class SpeedEstimator(
             val jump = haversineM(last.lat, last.lon, lat, lon) / dt * 3.6
             if (dt > maxGapSec || jump > 250.0) reset()
         }
+        if (last != null && last.lat == lat && last.lon == lon) { if (frozenSince < 0) frozenSince = last.t } else frozenSince = -1.0
         fixes.addLast(Fix(tSec, lat, lon))
         while (fixes.size > 2 && tSec - fixes[1].t >= windowSec) fixes.removeFirst()
         val first = fixes.first()
@@ -50,6 +58,7 @@ class SpeedEstimator(
             // standing still snaps to exactly 0 (an EMA would only halve towards it forever)
             speedKmh = if (kmh == 0f) 0f else speedKmh?.let { it + (kmh - it) * alpha } ?: kmh
         }
+        if (frozenSince >= 0 && tSec - frozenSince >= frozenSec) speedKmh = null
         return speedKmh
     }
 

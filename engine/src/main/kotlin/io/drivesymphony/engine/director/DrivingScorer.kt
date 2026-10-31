@@ -77,6 +77,7 @@ class DrivingScorer(
     private var lastEvent: DriveEvent? = null
     private var lastEventAt = -1000.0
     private var lastPenaltyAt = -1000.0
+    private var lastBeltNudgeAt = -1000.0
     private var smoothStreakAnnouncedAt = -1000.0
 
     var state: ScoreState = ScoreState()
@@ -87,12 +88,12 @@ class DrivingScorer(
         prevBrake = false; brakeOnAt = -1.0; brakeReleases.clear()
         signalLastOnAt = -100.0; inTurn = false; turnHold = 0f
         penalty = 0f; pulse = 0f; flow = 0.6f; instant = 0.6f; streak = 0f
-        lastEvent = null; lastEventAt = -1000.0; lastPenaltyAt = -1000.0
+        lastEvent = null; lastEventAt = -1000.0; lastPenaltyAt = -1000.0; lastBeltNudgeAt = -1000.0
         graceUntil = -1000.0; lastGraced = false; overSustain = 0f
         state = ScoreState()
     }
 
-    private fun fire(ev: DriveEvent, amount: Float, now: Double) {
+    private fun fire(ev: DriveEvent, amount: Float, now: Double, graceable: Boolean = true) {
         var a = amount
         if (ev.isPenalty) {
             // Grace rule: the first event after a long clean streak is probably an emergency manoeuvre, and so is
@@ -100,7 +101,9 @@ class DrivingScorer(
             // A graced manoeuvre costs half and only a half-strength pulse: a short breath, not a punishment.
             val sinceLastPenalty = now - lastPenaltyAt
             var graced = false
-            if (now < graceUntil) {
+            if (!graceable) {
+                // a reminder, not a manoeuvre: never read as an emergency
+            } else if (now < graceUntil) {
                 graced = true
             } else if (streak >= GRACE_STREAK_SEC && sinceLastPenalty > 10.0) {
                 graced = true
@@ -140,7 +143,7 @@ class DrivingScorer(
         }
         prevAngle = angle; haveAngle = true
         var threshold = harshSteerDegPerSec
-        if (lowSpeed) threshold *= 2f
+        if (lowSpeed) threshold *= 2f else if (speed == null) threshold *= 1.5f   // unknown speed (no navigation, frozen fix): a middle guard
         if (s.cruise == CruiseState.ACTIVATED || (speed != null && speed > 70f)) threshold *= 0.75f
         harshLatch = (harshLatch - dtc).coerceAtLeast(0f)
         if (moving && !lowSpeed && steerRateEma > threshold && harshLatch <= 0f) {
@@ -203,8 +206,11 @@ class DrivingScorer(
         }
 
         // --- seat belt ----------------------------------------------------------------------
-        val beltOff = moving && s.seatBeltFastened == false
-        if (beltOff && now - lastEventAt > 10.0) fire(DriveEvent.SEATBELT_OFF, 0f, now)
+        // A nudge, not a cap: every 30 s a brief dip with the caption, only when the car is known to be at road speed.
+        // (A parked car and the emulator have no reliable speed, and the emulator's belt cannot be buckled at all, so a
+        // hard cap would have pinned the music at 40 for every reviewer.)
+        val beltOff = moving && s.seatBeltFastened == false && speed != null && speed > 15f
+        if (beltOff && now - lastBeltNudgeAt > BELT_NUDGE_SEC) { lastBeltNudgeAt = now; fire(DriveEvent.SEATBELT_OFF, 0.15f, now, graceable = false) }
 
         // --- integrate -----------------------------------------------------------------------
         penalty *= exp(-dtc / 4f)
@@ -213,10 +219,9 @@ class DrivingScorer(
         if (pulse < 0.002f) pulse = 0f
 
         if (moving) {
-            if (penalty == 0f && overRatio == 0f && !beltOff) streak += dtc else streak = 0f
+            if (penalty == 0f && overRatio == 0f) streak += dtc else streak = 0f
             var target = 1f - penalty - overRatio * 0.6f
             if (streak > 20f) target += 0.05f
-            if (beltOff) target = min(target, 0.4f)
             // never go fully dark: a floor of 0.1 keeps a thin, soft bed playing (the feedback is "quieter and
             // duller", not punishment by silence)
             instant = target.coerceIn(0.1f, 1f)
@@ -248,6 +253,8 @@ class DrivingScorer(
     companion object {
         /** Clean-driving seconds after which the next event is read as an emergency manoeuvre. */
         const val GRACE_STREAK_SEC = 30f
+        /** Seconds between seat-belt reminders while unbuckled at road speed. */
+        const val BELT_NUDGE_SEC = 30.0
         /** Seconds after a graced event during which further events still belong to the same manoeuvre. */
         const val EVASIVE_WINDOW_SEC = 2.5
         /** Seconds the derived speed must stay over the limit before it is scored. */

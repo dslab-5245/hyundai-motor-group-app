@@ -43,6 +43,7 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
     // One area + listener per rear seat: the SDK reports occupancy per single seat (capabilities return List<SeatArea>),
     // so a combined multi-seat area may be rejected at registration.
     private val rearSeatAreas = listOf(SeatValue.ROW_2_LEFT, SeatValue.ROW_2_CENTER, SeatValue.ROW_2_RIGHT).map { SeatArea(it) }
+    private val rearSeatNames = listOf("ROW_2_LEFT", "ROW_2_CENTER", "ROW_2_RIGHT")
     private val rearOccupied = BooleanArray(rearSeatAreas.size)
     private val driverSeat = SeatArea(SeatValue.ROW_1_LEFT)
     private val frontWindshield = WindowArea(WindowValue.FRONT_WINDSHIELD)
@@ -50,11 +51,17 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
     private fun warn(what: String, e: Exception) { Log.w(TAG, "$what failed: ${e.message}") }
 
     private val steering = object : SteeringWheelAngleListener {
-        override fun onSteeringWheelAngleUpdated(angle: Float?) { angle?.let { store?.steeringAngleDeg = it; store?.touchVehicle() } }
+        private var lastLogged = 0f
+        override fun onSteeringWheelAngleUpdated(angle: Float?) {
+            angle?.let {
+                store?.steeringAngleDeg = it; store?.touchVehicle()
+                if (kotlin.math.abs(it - lastLogged) >= 20f) { lastLogged = it; Log.i(TAG, "steering $it deg") }   // evidence: SDK -> app
+            }
+        }
         override fun onFailed(e: Exception) = warn("steering", e)
     }
     private val brake = object : BrakePedalStatusListener {
-        override fun onBrakePedalStatusUpdated(status: Boolean?) { status?.let { store?.brake = it; store?.touchVehicle() } }
+        override fun onBrakePedalStatusUpdated(status: Boolean?) { status?.let { store?.brake = it; store?.touchVehicle(); Log.i(TAG, "brake pedal ${if (it) "pressed" else "released"}") } }
         override fun onFailed(e: Exception) = warn("brake", e)
     }
     private val turnSignal = object : TurnSignalStateListener {
@@ -111,11 +118,17 @@ class PleosVehicleSource(private val context: Context) : SignalSource {
         }
         override fun onFailed(e: Exception) = warn("cruise", e)
     }
+    // Vehicle SDK 2.3.2 derives the seat-occupancy Boolean as `rawValue == 1`. On the Pleos emulator (and AOSP) the
+    // SEAT_OCCUPANCY property is VehicleSeatOccupancyState: 0 UNKNOWN, 1 VACANT, 2 OCCUPIED, and the Virtual Console's
+    // "occupied" switch writes 2 (verified 2026-10-31: driver seat 2 -> false, empty rear seats 1 -> true). So the callback's
+    // `true` means VACANT; we read it inversely and treat UNKNOWN as occupied (the gentle, conservative side).
     private val rearListeners = List(rearSeatAreas.size) { i ->
         object : SeatOccupancyListener {
             override fun onSeatOccupancyUpdated(occupancy: Boolean?) {
+                val occupied = occupancy == false
+                Log.i(TAG, "seatOccupancy[$i] (${rearSeatNames[i]}) sdk=$occupancy -> occupied=$occupied")
                 occupancy?.let {
-                    rearOccupied[i] = it
+                    rearOccupied[i] = occupied
                     store?.rearSeatOccupied = rearOccupied.any { o -> o }
                     store?.touchVehicle()
                 }

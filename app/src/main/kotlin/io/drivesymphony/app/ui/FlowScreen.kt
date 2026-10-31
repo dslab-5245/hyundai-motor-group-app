@@ -164,6 +164,7 @@ private fun EventLine(engine: EngineState?) {
     }
     val text = when {
         !visible -> engine?.let { if (it.streakSec > 20f) "부드럽게 ${it.streakSec.toInt()}초째" else "주행에 맞춰 연주 중" } ?: ""
+        ev == DriveEvent.SEATBELT_OFF -> "안전벨트 미착용 · 매면 음악이 다시 열려요"
         ev!!.isPenalty && graced -> "${ev.label} · 긴급 회피로 봤어요, 잠깐 숨만 고를게요"
         ev.isPenalty -> "${ev.label} · 음악이 잠시 가라앉아요"
         ev == DriveEvent.SIGNALED_TURN -> "깜빡이 좋아요 · 레이어가 열려요"

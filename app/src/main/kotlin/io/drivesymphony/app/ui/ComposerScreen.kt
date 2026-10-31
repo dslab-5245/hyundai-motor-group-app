@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,9 +72,10 @@ fun ComposerScreen(
                 }
                 for (g in Genre.values()) {
                     val selected = g == ui.genre
-                    OutlinedButton(onClick = { onGenre(g) }, modifier = Modifier.height(72.dp), shape = RoundedCornerShape(20.dp),
+                    // tighter padding + no wrapping: in the 2-pane shell the row is exactly one column wide and 'Ambient' used to break
+                    OutlinedButton(onClick = { onGenre(g) }, modifier = Modifier.height(72.dp), shape = RoundedCornerShape(20.dp), contentPadding = PaddingValues(horizontal = 16.dp),
                         colors = ButtonDefaults.outlinedButtonColors(containerColor = if (selected) DsColors.accent(g).copy(alpha = 0.22f) else Color.Transparent, contentColor = if (selected) DsColors.accent(g) else DsColors.muted)) {
-                        Text(g.label, fontSize = 22.sp)
+                        Text(g.label, fontSize = 22.sp, maxLines = 1, softWrap = false)
                     }
                 }
             }

@@ -34,6 +34,8 @@
         android:appCategory="audio"
         android:theme="@style/Theme.DriveSymphony"
         tools:targetApi="34">
+        <!-- lets simpleperf / Android Studio profile the release build (no debug flag needed) -->
+        <profileable android:shell="true" />
 
         <!-- Pleos App Market category hint: Music / Audio (driving-allowed category). -->
         <meta-data android:name="pleos.app.category" android:value="MUSIC_AUDIO" />

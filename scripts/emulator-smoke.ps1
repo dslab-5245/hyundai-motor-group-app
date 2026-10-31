@@ -2,7 +2,8 @@
 # through the Virtual Console REST API -> collect evidence.
 #   powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\emulator-smoke.ps1 [-Apk path] [-Seconds 110] [-RealSignals] [-KeepRunning]
 # Evidence lands in <repo>\build\smoke\<timestamp>\ : logcat.txt, crashes.txt, top.txt (process), threads.txt (per thread),
-#   media_session.txt, audio.txt, app-log-tail.txt, screen_*.png, and with -RealSignals: cue.txt + vehicle-signals.txt
+#   media_session.txt, audio.txt, app-log-tail.txt, cpu-share.txt (per-thread % of one core from /proc, 30 s windows),
+#   load-log.txt (the service's own 10 s audio-load lines), screen_*.png, and with -RealSignals: cue.txt + vehicle-signals.txt
 param(
     [string]$Apk = "C:\Users\user\dev\drive-symphony\app\build\outputs\apk\debug\app-debug.apk",
     [int]$Seconds = 110,   # demo story is 106 s: 20 s calm, 20-28 harsh, bloom, 86 s evasive swerve, rain, 103 s PARK
@@ -26,6 +27,10 @@ function Shot($name) {
     # PowerShell redirection corrupts binary stdout; capture on the device and pull instead.
     Adb shell screencap -p /sdcard/ds_shot.png | Out-Null
     Adb pull /sdcard/ds_shot.png (Join-Path $out $name) | Out-Null
+}
+function CpuShare($label) {
+    "== $label" | Out-File (Join-Path $out 'cpu-share.txt') -Append -Encoding utf8
+    & python -I (Join-Path $repo 'scripts\cpu-share.py') --adb $adb --pkg $pkg --seconds 30 2>&1 | Out-File (Join-Path $out 'cpu-share.txt') -Append -Encoding utf8
 }
 function Threads($label) {
     $p = (Adb shell pidof $pkg | Out-String).Trim()
@@ -74,6 +79,7 @@ for ($i = 0; $i -lt $steps; $i++) {
     Shot ("screen_{0:d2}.png" -f ($i + 2))
 }
 $samples | Out-File (Join-Path $out 'top.txt') -Encoding utf8
+CpuShare "demo story, t=$Seconds s onwards (30 s window; JIT warm)"
 
 Write-Host "== Gleo-style voice command: switch to jazz, ask for the score" -ForegroundColor Cyan
 # --% hands the rest of the line to adb verbatim, so the JSON keeps its quotes all the way to the device shell.
@@ -94,14 +100,20 @@ if ($RealSignals) {
         & python -I scripts\virtual-console.py --adb $adb cue *>&1 | Out-File $log -Encoding utf8
     } -ArgumentList $repo, $adb, $cueLog
     $t = 0
+    $share = Start-Job -ScriptBlock { param($repo, $adb, $pkg, $log) "== real signals (cue sheet), 30 s window" | Out-File $log -Append -Encoding utf8; & python -I (Join-Path $repo 'scripts\cpu-share.py') --adb $adb --pkg $pkg --seconds 30 2>&1 | Out-File $log -Append -Encoding utf8 } -ArgumentList $repo, $adb, $pkg, (Join-Path $out 'cpu-share.txt')
     while ($job.State -eq 'Running' -and $t -lt 150) {
         Start-Sleep -Seconds 10; $t += 10
         if ($t % 30 -eq 0) { Threads "real t=${t}s" }
         Shot ("screen_real_{0:d2}.png" -f ($t / 10))
     }
+    Wait-Job $share -Timeout 40 | Out-Null; Remove-Job $share -Force
     Receive-Job $job | Out-Null; Remove-Job $job -Force
     Adb logcat -d 2>$null | Select-String -Pattern 'onChangeEvent|PleosVehicleSource|STEERING|BRAKE|TURN_SIGNAL|WIPER|GEAR|CRUISE|SEAT' | Select-Object -Last 80 | ForEach-Object { $_.Line } | Out-File (Join-Path $out 'vehicle-signals.txt') -Encoding utf8
     Shot 'screen_real_end.png'
+    # parked after the cue sheet: open the composer tab (2-pane shell, tab row at y~170) for the journey card and settings
+    Adb shell input tap 1040 170 | Out-Null
+    Start-Sleep -Seconds 2
+    Shot 'screen_composer.png'
 }
 
 Write-Host "== evidence" -ForegroundColor Cyan
@@ -110,8 +122,9 @@ Adb shell dumpsys audio 2>$null | Select-String -Pattern 'focus|drivesymphony|US
 Adb logcat -d 2>$null | Out-File (Join-Path $out 'logcat.txt') -Encoding utf8
 Select-String -Path (Join-Path $out 'logcat.txt') -Pattern 'FATAL EXCEPTION|AndroidRuntime|drivesymphony.*Exception|ANR in' | ForEach-Object { $_.Line } | Out-File (Join-Path $out 'crashes.txt') -Encoding utf8
 Select-String -Path (Join-Path $out 'logcat.txt') -Pattern 'SymphonyService|PleosVehicleSource|PleosNaviSource|AudioOutput|DrivingStateObserver|gleo reply|engine load' | Select-Object -Last 60 | ForEach-Object { $_.Line } | Out-File (Join-Path $out 'app-log-tail.txt') -Encoding utf8
+Select-String -Path (Join-Path $out 'logcat.txt') -Pattern 'audio load|engine load|seatOccupancy\[|rear seat' | ForEach-Object { $_.Line } | Out-File (Join-Path $out 'load-log.txt') -Encoding utf8
 
 $crashCount = (Get-Content (Join-Path $out 'crashes.txt') | Measure-Object -Line).Lines
-Write-Host "crash lines: $crashCount (see crashes.txt)"; Write-Host "cpu samples (process):"; Get-Content (Join-Path $out 'top.txt')
+Write-Host "crash lines: $crashCount (see crashes.txt)"; Write-Host "cpu share (/proc):"; Get-Content (Join-Path $out 'cpu-share.txt')
 Write-Host "evidence dir: $out" -ForegroundColor Green
 if (-not $KeepRunning) { Adb shell am force-stop $pkg | Out-Null; Adb emu kill | Out-Null }

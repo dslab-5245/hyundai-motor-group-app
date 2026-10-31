@@ -165,4 +165,40 @@ class DrivingScorerTest {
         assertTrue(graced, "the 86 s swerve must be read as an emergency manoeuvre")
         assertTrue(minEvasive > 0.65f, "the evasive swerve should only be a short breath (min flow $minEvasive)")
     }
+
+    @Test
+    fun harshSteerStillCountsWhenSpeedIsUnknown() {
+        // no navigation (or a frozen fix): the harsh-steer guard is 1.5x, not off. A 220-degree swerve must register.
+        val s = DrivingScorer()
+        run(s, 0.0, 20.0) { t -> DrivingSignals(t, steeringAngleDeg = 0f, gear = Gear.DRIVE, speedKmh = null, seatBeltFastened = false) }
+        assertTrue(s.state.lastEvent != DriveEvent.HARSH_STEER)
+        run(s, 20.0, 20.5) { t -> DrivingSignals(t, steeringAngleDeg = 220f, gear = Gear.DRIVE, speedKmh = null, seatBeltFastened = false) }
+        assertEquals(DriveEvent.HARSH_STEER, s.state.lastEvent)
+        assertTrue(s.state.flow < 0.9f)
+        // and a crawling car (speed known, < 15 km/h) stays guarded: parking manoeuvres are not scored
+        val p = DrivingScorer()
+        run(p, 0.0, 20.0) { t -> DrivingSignals(t, steeringAngleDeg = 0f, gear = Gear.DRIVE, speedKmh = 6f, seatBeltFastened = true) }
+        run(p, 20.0, 20.5) { t -> DrivingSignals(t, steeringAngleDeg = 220f, gear = Gear.DRIVE, speedKmh = 6f, seatBeltFastened = true) }
+        assertTrue(p.state.lastEvent != DriveEvent.HARSH_STEER)
+    }
+
+    @Test
+    fun seatBeltOffIsANudgeAtRoadSpeedAndNothingWhenSpeedIsUnknown() {
+        // unknown speed (emulator, no navigation): no belt event at all, the music is not capped
+        val u = DrivingScorer()
+        run(u, 0.0, 40.0) { t -> DrivingSignals(t, steeringAngleDeg = 0f, gear = Gear.DRIVE, speedKmh = null, seatBeltFastened = false) }
+        assertTrue(u.state.lastEvent != DriveEvent.SEATBELT_OFF)
+        assertTrue(u.state.flow > 0.9f, "flow ${u.state.flow}")
+        // road speed with the belt off: a reminder every 30 s, a brief dip, never a hard cap, never read as an emergency
+        val r = DrivingScorer()
+        val events = mutableListOf<Double>()
+        var t = 0.0
+        while (t < 70.0) {
+            r.update(DrivingSignals(t, steeringAngleDeg = 0f, gear = Gear.DRIVE, speedKmh = 60f, seatBeltFastened = false), dt)
+            if (r.state.lastEvent == DriveEvent.SEATBELT_OFF && r.state.lastEventAgeSec < dt && (events.isEmpty() || t - events.last() > 1.0)) { events.add(t); assertTrue(!r.state.graced) }
+            t += dt
+        }
+        assertEquals(3, events.size, "reminders at ~0, ~30, ~60 s: $events")
+        assertTrue(r.state.flow > 0.6f, "a nudge, not a cap: flow ${r.state.flow}")
+    }
 }

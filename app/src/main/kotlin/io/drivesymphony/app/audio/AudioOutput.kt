@@ -3,6 +3,7 @@ package io.drivesymphony.app.audio
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Debug
 import android.os.Process
 import android.util.Log
 
@@ -17,7 +18,10 @@ class AudioOutput(
 ) {
     @Volatile private var running = false
     @Volatile var duckGain = 1f
-    /** Render time / block time as a fraction of one core (~2 s EMA); the service's CPU-budget guard reads it. */
+    /**
+     * Render CPU time / block time as a fraction of one core (~2 s EMA); the service's CPU-budget guard reads it.
+     * Thread CPU time, not wall time: the Pleos budget is a CPU share, and a thread preempted by the UI must not look busy.
+     */
     @Volatile var load = 0f
         private set
     /** The render thread is alive (also while it is still finishing a blocking write after stop()). */
@@ -44,7 +48,7 @@ class AudioOutput(
         val block = FloatArray(blockFrames * 2)
         try {
             val minBuf = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_FLOAT)
-            val bufBytes = maxOf(minBuf, blockFrames * 2 * 4 * 6)
+            val bufBytes = maxOf(minBuf, blockFrames * 2 * 4 * 4)   // 4 blocks (~43 ms at 512 frames): reaction stays well under 0.2 s
             val t = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
@@ -64,6 +68,9 @@ class AudioOutput(
                 .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
                 .build()
             track = t
+            // the real output latency budget: the buffer the platform actually granted (it may exceed the request)
+            Log.i(TAG, "AudioTrack buffer ${t.bufferSizeInFrames} frames = ${t.bufferSizeInFrames * 1000 / sampleRate} ms " +
+                "(requested ${bufBytes / 8} frames, min ${minBuf / 8}), block $blockFrames frames = ${blockFrames * 1000 / sampleRate} ms")
             t.play()
             // click-free start: ~200 ms of pre-roll silence (same technique Pleos recommends for voice prompts),
             // then the block gain ramps up from zero (~40 ms) instead of starting at full level.
@@ -75,9 +82,10 @@ class AudioOutput(
             val blockNs = blockFrames * 1_000_000_000.0 / sampleRate
             val loadAlpha = (blockFrames / (sampleRate * 2.0)).toFloat()   // ~2 s window
             while (running) {
-                val t0 = System.nanoTime()
+                val t0 = Debug.threadCpuTimeNanos()
                 renderBlock(block, blockFrames)
-                load += (((System.nanoTime() - t0) / blockNs).toFloat() - load) * loadAlpha
+                val t1 = Debug.threadCpuTimeNanos()
+                if (t0 >= 0L && t1 >= t0) load += (((t1 - t0) / blockNs).toFloat() - load) * loadAlpha
                 smoothGain += (duckGain - smoothGain) * 0.15f
                 val g = smoothGain
                 if (g < 0.999f) for (i in block.indices) block[i] *= g

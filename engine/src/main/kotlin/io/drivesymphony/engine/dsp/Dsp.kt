@@ -225,35 +225,52 @@ class Crush(private val sampleRate: Float) {
     }
 }
 
-/** Freeverb-style reverb (8 combs + 4 allpasses) for one channel. */
+/**
+ * Freeverb-style reverb (8 combs + 4 allpasses) for one channel. The delay lines are plain ring buffers with
+ * fixed-length taps (no per-read bounds coercion): 24 taps per sample made this the hottest DSP block on the
+ * car's ART runtime. Output is bit-identical to the DelayLine-based version.
+ */
 class Reverb(sampleRate: Float, stereoOffset: Int = 0) {
     private val combTunings = intArrayOf(1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617)
     private val apTunings = intArrayOf(556, 441, 341, 225)
     private val scale = sampleRate / 44100f
-    private val combs = Array(8) { DelayLine((combTunings[it] * scale).toInt() + stereoOffset + 2) }
     private val combLen = IntArray(8) { (combTunings[it] * scale).toInt() + stereoOffset }
+    private val combBuf = Array(8) { FloatArray(combLen[it] + 2) }
+    private val combW = IntArray(8)
     private val combStore = FloatArray(8)
-    private val aps = Array(4) { DelayLine((apTunings[it] * scale).toInt() + stereoOffset + 2) }
     private val apLen = IntArray(4) { (apTunings[it] * scale).toInt() + stereoOffset }
+    private val apBuf = Array(4) { FloatArray(apLen[it] + 2) }
+    private val apW = IntArray(4)
     var roomSize = 0.82f
     var damping = 0.35f
 
     /** Silences the tail; used when a channel's reverb was idle (light profile) and must not replay stale audio. */
-    fun clear() { for (c in combs) c.clear(); for (a in aps) a.clear(); combStore.fill(0f) }
+    fun clear() { for (b in combBuf) b.fill(0f); for (b in apBuf) b.fill(0f); combW.fill(0); apW.fill(0); combStore.fill(0f) }
 
     fun process(x: Float): Float {
         val input = x * 0.015f
         var out = 0f
+        val damp = damping
+        val room = roomSize
         for (i in 0 until 8) {
-            val y = combs[i].readInt(combLen[i])
-            combStore[i] = y * (1f - damping) + combStore[i] * damping
-            combs[i].write(input + combStore[i] * roomSize)
+            val buf = combBuf[i]
+            val w = combW[i]
+            var r = w - combLen[i]; if (r < 0) r += buf.size
+            val y = buf[r]
+            val st = y * (1f - damp) + combStore[i] * damp
+            combStore[i] = st
+            buf[w] = input + st * room
+            combW[i] = if (w + 1 >= buf.size) 0 else w + 1
             out += y
         }
         for (i in 0 until 4) {
-            val bufOut = aps[i].readInt(apLen[i])
+            val buf = apBuf[i]
+            val w = apW[i]
+            var r = w - apLen[i]; if (r < 0) r += buf.size
+            val bufOut = buf[r]
             val v = out
-            aps[i].write(v + bufOut * 0.5f)
+            buf[w] = v + bufOut * 0.5f
+            apW[i] = if (w + 1 >= buf.size) 0 else w + 1
             out = bufOut - v
         }
         return out

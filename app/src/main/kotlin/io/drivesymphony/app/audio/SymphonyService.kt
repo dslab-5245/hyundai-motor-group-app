@@ -46,6 +46,8 @@ import io.drivesymphony.engine.remix.TrackProcessor
 import io.drivesymphony.engine.scenario.Scenarios
 import io.drivesymphony.engine.theory.Genre
 import io.drivesymphony.engine.theory.GenreParser
+import kotlin.math.floor
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -112,6 +114,10 @@ class SymphonyService : MediaBrowserServiceCompat() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> Log.e(TAG, "service coroutine", e) })
     private var controlJob: Job? = null
+    private var tick = 0L
+    private var lastUiKey: EngineState? = null
+    private var loadLogSec = 0f
+    private var loadUiSec = 0f
 
     private val _engineState = MutableStateFlow<EngineState?>(null)
     val engineState: StateFlow<EngineState?> = _engineState
@@ -198,7 +204,24 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 trackTrip(snap.gear, snap.speedKmh)
                 guardLoad(dt)
                 val st = engine.state
-                _engineState.value = st
+                // UI publishing: ~8 Hz at most (the parked composer's visualiser needs no more), and while driving only
+                // when something the glance screen can show has changed. The glance screen is quantised by rule (flow in
+                // 5-point steps, penalty halo on/off, no beat animation), so publishing identical frames would only cost
+                // main-thread recompositions (measured ~6 % of a core on the emulator's software GPU). A fresh drive
+                // event is pushed immediately so the halo and caption react within one tick.
+                tick++
+                val fresh = st.lastEvent != null && st.lastEventAgeSec < 0.03f   // the firing tick only (the next tick is ~0.04 s old)
+                if (fresh) Log.i(TAG, "drive event ${st.lastEvent}${if (st.graced) " (graced)" else ""} -> flow ${"%.2f".format(st.flow)}, gear ${snap.gear}")
+                if (fresh || tick % 3 == 0L) {
+                    val key = if (st.moving) st.copy(
+                        flow = (st.flow * 20f).roundToInt() / 20f, instant = 0f, peak = 0f, beatInBar = 0f,   // flow is 0..1: 5-point steps
+                        pulse = if (st.pulse > 0.25f) 1f else 0f, bpm = st.bpm.roundToInt().toFloat(),
+                        elapsedSec = floor(st.elapsedSec / 10f) * 10f, streakSec = floor(st.streakSec / 5f) * 5f,   // caption steps of 5 s
+                        lastEventAgeSec = floor(st.lastEventAgeSec * 2f) / 2f,
+                        density = (st.density * 20f).roundToInt() / 20f, bloom = (st.bloom * 20f).roundToInt() / 20f,
+                    ) else st
+                    if (fresh || key != lastUiKey) { lastUiKey = key; _engineState.value = key }
+                }
                 val vLive = vehicleSource.isLive(store)
                 val nLive = naviSource.isLive(store)
                 _ui.update { if (it.vehicleLive != vLive || it.naviLive != nLive) it.copy(vehicleLive = vLive, naviLive = nLive) else it }
@@ -232,7 +255,13 @@ class SymphonyService : MediaBrowserServiceCompat() {
             Log.i(TAG, "engine load ${"%.1f".format(load * 100)}% -> full profile")
         }
         val light = engine.profile == RenderProfile.LIGHT
-        _ui.update { if (it.light != light || kotlin.math.abs(it.engineLoad - load) > 0.002f) it.copy(light = light, engineLoad = load) else it }
+        loadLogSec += dt
+        if (synth && loadLogSec >= 10f) { loadLogSec = 0f; Log.i(TAG, "audio load ${"%.1f".format(load * 100)}% of one core (${if (light) "light" else "full"} profile)") }
+        // the load row is only visible in the parked composer and reads in 0.5 % steps: publish it in those steps, at most 1 Hz,
+        // so the jitter of the EMA does not recompose the UI 25 times a second
+        loadUiSec += dt
+        val loadStep = (load * 200f).roundToInt() / 200f
+        if (_ui.value.light != light || (loadUiSec >= 1f && loadStep != _ui.value.engineLoad)) { loadUiSec = 0f; _ui.update { it.copy(light = light, engineLoad = loadStep) } }
     }
 
     private fun trackTrip(gear: Gear, speed: Float?) {
@@ -313,7 +342,19 @@ class SymphonyService : MediaBrowserServiceCompat() {
     fun setDemo(enabled: Boolean, scenarioId: String = settings.demoScenarioId) {
         settings.demoMode = enabled
         settings.demoScenarioId = scenarioId
-        if (enabled) { scenarioSource.setScenario(Scenarios.byId(scenarioId)); scenarioSource.start(store) } else scenarioSource.stop()
+        if (enabled) { scenarioSource.setScenario(Scenarios.byId(scenarioId)); scenarioSource.start(store) } else {
+            scenarioSource.stop()
+            // The demo wrote every field. Hand them back: navigation values are re-derived within a second, and the
+            // vehicle sources re-register so the SDK delivers the current values again (otherwise the demo's last
+            // gear / belt / speed would stick until the next real change).
+            store.speedKmh = null; store.speedLimitKmh = null; store.cautionAhead = io.drivesymphony.engine.director.CautionKind.NONE
+            store.cautionDistanceM = null; store.roadName = null; store.seatBeltFastened = null
+            store.steeringAngleDeg = 0f; store.brake = false; store.turnSignal = io.drivesymphony.engine.director.TurnSignal.OFF
+            store.wiper = io.drivesymphony.engine.director.WiperState.OFF; store.cruise = io.drivesymphony.engine.director.CruiseState.OFF
+            store.driveMode = io.drivesymphony.engine.director.DriveMode.NORMAL; store.gear = Gear.UNKNOWN; store.propertyGearLive = false
+            runCatching { vehicleSource.stop(); vehicleSource.start(store) }.onFailure { Log.w(TAG, "vehicle source restart", it) }
+            runCatching { carGearSource.stop(); carGearSource.start(store) }.onFailure { Log.w(TAG, "gear source restart", it) }
+        }
         _ui.update { it.copy(demo = enabled, demoScenarioId = scenarioId) }
     }
 
@@ -571,7 +612,9 @@ class SymphonyService : MediaBrowserServiceCompat() {
 
     companion object {
         const val SAMPLE_RATE = 48000
-        const val BLOCK_FRAMES = 256
+        /** 512 frames = 10.7 ms: halves the AudioTrack.write / JNI round trips per second versus 256 (measured as a third of the
+         *  audio thread's cost on the Pleos emulator) while the end-to-end reaction stays under 0.2 s. */
+        const val BLOCK_FRAMES = 512
         /** light-profile guard: enter above 4% of one core for 3 s, leave below 2% for 60 s */
         const val LIGHT_ENTER_LOAD = 0.040f
         const val LIGHT_EXIT_LOAD = 0.020f

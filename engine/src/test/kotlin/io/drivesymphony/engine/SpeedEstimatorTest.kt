@@ -5,6 +5,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sqrt
 import kotlin.test.Test
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -78,5 +79,22 @@ class SpeedEstimatorTest {
         assertTrue((est.speedKmh ?: 0f) > 40f, "recovers after the gap: ${est.speedKmh}")
         est.push(37.51, 127.0, 9.0) // ~1.1 km in 1 s: map re-match jump
         assertNull(est.speedKmh, "an implausible jump must restart, not spike")
+    }
+
+    @Test
+    fun frozenFixBecomesUnknownNotZero() {
+        // the Pleos emulator's navigation engine repeats one exact position at 1 Hz: that must not read as "crawling"
+        val e = SpeedEstimator()
+        var t = 0.0
+        var sawZero = false
+        while (t < 12.0) { val v = e.push(37.4127212, 127.094681, t); if (t in 4.0..7.0 && v == 0f) sawZero = true; t += 1.0 }
+        assertTrue(sawZero, "identical fixes read as 0 km/h at first")
+        assertNull(e.speedKmh, "after 8 s of a frozen fix the speed is unknown")
+        // a receiver that jitters by metres (a real parked car) keeps reporting 0
+        val j = SpeedEstimator()
+        t = 0.0
+        while (t < 12.0) { j.push(37.4127212 + (if (t.toInt() % 2 == 0) 1e-5 else -1e-5), 127.094681, t); t += 1.0 }
+        assertNotNull(j.speedKmh)
+        assertTrue(j.speedKmh!! < 15f)
     }
 }
