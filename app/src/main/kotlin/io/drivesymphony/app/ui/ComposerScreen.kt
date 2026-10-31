@@ -162,8 +162,8 @@ fun ComposerScreen(
             Card {
                 Text(text = "신호 상태", fontSize = 22.sp, color = DsColors.muted)
                 Spacer(Modifier.height(6.dp))
-                StatRow("Vehicle SDK", if (ui.vehicleLive) "수신 중" else "대기")
-                StatRow("NaviHelper", if (ui.naviLive) "수신 중" else "내비 미실행")
+                StatRow("Vehicle SDK", if (ui.demo) "데모 중 (시나리오가 신호를 대신함)" else if (ui.vehicleLive) "수신 중" else "대기")
+                StatRow("NaviHelper", if (ui.demo) "데모 중" else if (ui.naviLive) "수신 중" else "내비 미실행")
                 StatRow("주행 제한(UX)", if (ui.restricted) "주행 중 화면" else "정차 화면")
                 StatRow("뒷좌석", if (ui.rearSeat) "탑승 → 강도 '약'" else "비어 있음")
                 StatRow("오디오 부하", if (ui.playing) "1코어의 %.1f%%".format(ui.engineLoad * 100) + (if (ui.light) " · 라이트 프로파일" else "") else "대기")

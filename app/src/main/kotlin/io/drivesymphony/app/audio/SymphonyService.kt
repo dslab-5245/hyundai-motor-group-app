@@ -166,10 +166,22 @@ class SymphonyService : MediaBrowserServiceCompat() {
     }
 
     private fun startSources() {
+        // A running demo owns every field, so the SDK sources stay off until it ends (see setDemo): one stray SDK
+        // callback (steering 0 deg landing between two scenario writes) would read as a 2000 deg/s swerve.
+        if (settings.demoMode) { scenarioSource.setScenario(Scenarios.byId(settings.demoScenarioId)); scenarioSource.start(store); return }
+        startSdkSources()
+    }
+
+    private fun startSdkSources() {
         runCatching { vehicleSource.start(store) }.onFailure { Log.w(TAG, "vehicle source failed: ${it.message}") }
         runCatching { naviSource.start(store) }.onFailure { Log.w(TAG, "navi source failed: ${it.message}") }
         runCatching { carGearSource.start(store) }.onFailure { Log.w(TAG, "car gear source failed: ${it.message}") }
-        if (settings.demoMode) { scenarioSource.setScenario(Scenarios.byId(settings.demoScenarioId)); scenarioSource.start(store) }
+    }
+
+    private fun stopSdkSources() {
+        runCatching { vehicleSource.stop() }.onFailure { Log.w(TAG, "vehicle source stop: ${it.message}") }
+        runCatching { naviSource.stop() }.onFailure { Log.w(TAG, "navi source stop: ${it.message}") }
+        runCatching { carGearSource.stop() }.onFailure { Log.w(TAG, "gear source stop: ${it.message}") }
     }
 
     private fun renderBlock(buf: FloatArray, frames: Int) {
@@ -393,20 +405,24 @@ class SymphonyService : MediaBrowserServiceCompat() {
     }
 
     fun setDemo(enabled: Boolean, scenarioId: String = settings.demoScenarioId) {
+        val wasOn = settings.demoMode
         settings.demoMode = enabled
         settings.demoScenarioId = scenarioId
-        if (enabled) { scenarioSource.setScenario(Scenarios.byId(scenarioId)); scenarioSource.start(store) } else {
+        if (enabled) {
+            // the scenario owns every field: the SDK sources are stopped so none of their callbacks can interleave
+            if (!wasOn) { stopSdkSources(); Log.i(TAG, "demo on: SDK sources paused") }
+            scenarioSource.setScenario(Scenarios.byId(scenarioId)); scenarioSource.start(store)
+        } else {
             scenarioSource.stop()
-            // The demo wrote every field. Hand them back: navigation values are re-derived within a second, and the
-            // vehicle sources re-register so the SDK delivers the current values again (otherwise the demo's last
-            // gear / belt / speed would stick until the next real change).
+            // The demo wrote every field. Hand them back, then the SDK sources start again and deliver the current
+            // values (otherwise the demo's last gear / belt / speed would stick until the next real change).
             store.speedKmh = null; store.speedLimitKmh = null; store.cautionAhead = io.drivesymphony.engine.director.CautionKind.NONE
             store.cautionDistanceM = null; store.roadName = null; store.seatBeltFastened = null
             store.steeringAngleDeg = 0f; store.brake = false; store.turnSignal = io.drivesymphony.engine.director.TurnSignal.OFF
             store.wiper = io.drivesymphony.engine.director.WiperState.OFF; store.cruise = io.drivesymphony.engine.director.CruiseState.OFF
             store.driveMode = io.drivesymphony.engine.director.DriveMode.NORMAL; store.gear = Gear.UNKNOWN; store.propertyGearLive = false
-            runCatching { vehicleSource.stop(); vehicleSource.start(store) }.onFailure { Log.w(TAG, "vehicle source restart", it) }
-            runCatching { carGearSource.stop(); carGearSource.start(store) }.onFailure { Log.w(TAG, "gear source restart", it) }
+            startSdkSources()
+            Log.i(TAG, "demo off: SDK sources resumed")
         }
         _ui.update { it.copy(demo = enabled, demoScenarioId = scenarioId) }
     }
