@@ -86,6 +86,8 @@ data class ServiceUiState(
     val engineLoad: Float = 0f,
     /** a rear seat is occupied (feedback level forced to gentle while true) */
     val rearSeat: Boolean = false,
+    /** developer WAV recording tap is active (REC badge on the glance screen; adb RECORD action) */
+    val recording: Boolean = false,
 )
 
 /**
@@ -133,6 +135,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private var movingSinceMs = 0L
     private var wasMoving = false
     private var lastMovingAtMs = 0L
+    private var lastSags = 0
+    private var tap: AudioTap? = null
     private var rearOccupiedApplied = false   // rear passengers -> feedback level forced to '약'
 
     override fun onCreate() {
@@ -204,6 +208,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
                 trackTrip(snap.gear, snap.speedKmh)
                 guardLoad(dt)
                 val st = engine.state
+                if (st.sags != lastSags) { lastSags = st.sags; Log.i(TAG, "tape sag #${st.sags} after ${st.lastEvent}") }
                 // UI publishing: ~8 Hz at most (the parked composer's visualiser needs no more), and while driving only
                 // when something the glance screen can show has changed. The glance screen is quantised by rule (flow in
                 // 5-point steps, penalty halo on/off, no beat animation), so publishing identical frames would only cost
@@ -337,6 +342,26 @@ class SymphonyService : MediaBrowserServiceCompat() {
         settings.feedbackLevel = level
         engine.setFeedbackLevel(if (rearOccupiedApplied) 0 else level)
         _ui.update { it.copy(feedbackLevel = level) }
+    }
+
+    /**
+     * Developer tap for demo videos: records the rendered audio to a WAV (default: the app's external files dir) while
+     * the glance screen shows a REC badge, so a screen recording can be muxed with gapless audio.
+     *   adb shell am startservice -n io.drivesymphony.app/.audio.SymphonyService -a io.drivesymphony.action.RECORD --ez on true
+     */
+    fun setRecording(on: Boolean, path: String? = null) {
+        if (on) {
+            if (tap != null) return
+            val f = if (path.isNullOrBlank()) java.io.File(getExternalFilesDir(null), "recording.wav") else java.io.File(path)
+            _ui.update { it.copy(recording = true) }
+            tap = AudioTap(f, SAMPLE_RATE).also { output.tap = it }
+            Log.i(TAG, "recording started: ${f.absolutePath}")
+        } else {
+            val t = tap ?: return
+            output.tap = null; tap = null
+            t.close()
+            _ui.update { it.copy(recording = false) }
+        }
     }
 
     fun setDemo(enabled: Boolean, scenarioId: String = settings.demoScenarioId) {
@@ -522,6 +547,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
             // adb-friendly demo switch for headless/PT runs:
             //   adb shell am startservice -n io.drivesymphony.app/.audio.SymphonyService -a io.drivesymphony.action.DEMO --ez on true --es scenario story
             ACTION_DEMO -> setDemo(intent.getBooleanExtra("on", true), intent.getStringExtra("scenario") ?: settings.demoScenarioId)
+            ACTION_RECORD -> setRecording(intent.getBooleanExtra("on", true), intent.getStringExtra("path"))
             GLEO_START, GLEO_SET_GENRE, GLEO_HOW_IS_MY_DRIVING, GLEO_PAUSE -> handleGleoIntent(intent)
         }
         // Pleos media-app rule: keep the foreground notification current whenever the service is (re)started while playing.
@@ -577,6 +603,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private fun genreFromText(text: String?): Genre? = GenreParser.parse(text)
 
     override fun onDestroy() {
+        setRecording(false)
         pause()
         runCatching { NotificationManagerCompat.from(this).cancel(NOTIF_ID) }
         controlJob?.cancel()
@@ -628,6 +655,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         const val ACTION_TOGGLE = "io.drivesymphony.action.TOGGLE"
         const val ACTION_NEXT_GENRE = "io.drivesymphony.action.NEXT_GENRE"
         const val ACTION_DEMO = "io.drivesymphony.action.DEMO"
+        const val ACTION_RECORD = "io.drivesymphony.action.RECORD"
         // Gleo function names == intent actions (assets/schema.json)
         const val GLEO_START = "startSymphony"
         const val GLEO_SET_GENRE = "setGenre"

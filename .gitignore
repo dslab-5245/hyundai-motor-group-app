@@ -14,3 +14,5 @@ previews/*.wav
 *.jks
 *.keystore
 local.properties.pending
+# python bytecode from scripts run in place
+scripts/__pycache__/

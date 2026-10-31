@@ -28,6 +28,8 @@ class AudioOutput(
     /** platform-reported output underruns since start (each one is an audible gap); the service logs them with the load. */
     @Volatile var underruns = 0
         private set
+    /** developer recording tap (see [AudioTap]); receives every rendered block before audio-focus ducking. */
+    @Volatile var tap: AudioTap? = null
     private val isEmulator = Build.HARDWARE.contains("ranchu") || Build.HARDWARE.contains("goldfish") || Build.FINGERPRINT.contains("generic")
     /** The render thread is alive (also while it is still finishing a blocking write after stop()). */
     val isRunning: Boolean get() = thread?.isAlive == true
@@ -53,10 +55,10 @@ class AudioOutput(
         val block = FloatArray(blockFrames * 2)
         try {
             val minBuf = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_FLOAT)
-            // Adaptive latency: allocate room for 8 blocks (~85 ms at 512 frames) but start with 4 (~43 ms); whenever the
+            // Adaptive latency: allocate room for 8 blocks (~85 ms at 512 frames; 16 = 170 ms on the emulator) but start with 4 (~43 ms); whenever the
             // platform reports an underrun the effective size doubles up to the capacity. The emulator (software GPU,
             // host audio through QEMU) starts at the capacity straight away: there, smooth audio matters more than 40 ms.
-            val capBytes = maxOf(minBuf, blockFrames * 2 * 4 * 8)
+            val capBytes = maxOf(minBuf, blockFrames * 2 * 4 * (if (isEmulator) 16 else 8))
             val startBytes = if (isEmulator) capBytes else maxOf(minBuf, blockFrames * 2 * 4 * 4)
             val t = AudioTrack.Builder()
                 .setAudioAttributes(
@@ -98,6 +100,7 @@ class AudioOutput(
             while (running) {
                 val t0 = Debug.threadCpuTimeNanos()
                 renderBlock(block, blockFrames)
+                tap?.push(block, blockFrames)
                 val t1 = Debug.threadCpuTimeNanos()
                 if (t0 >= 0L && t1 >= t0) load += (((t1 - t0) / blockNs).toFloat() - load) * loadAlpha
                 smoothGain += (duckGain - smoothGain) * 0.15f

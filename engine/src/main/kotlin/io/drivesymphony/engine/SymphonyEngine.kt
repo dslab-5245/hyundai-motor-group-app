@@ -10,11 +10,15 @@ import io.drivesymphony.engine.director.ScoreState
 import io.drivesymphony.engine.dsp.Crush
 import io.drivesymphony.engine.dsp.DcBlock
 import io.drivesymphony.engine.dsp.DelayLine
+import io.drivesymphony.engine.dsp.Ducker
+import io.drivesymphony.engine.dsp.GlueComp
 import io.drivesymphony.engine.dsp.Limiter
 import io.drivesymphony.engine.dsp.OnePole
 import io.drivesymphony.engine.dsp.Reverb
 import io.drivesymphony.engine.dsp.Rng
 import io.drivesymphony.engine.dsp.Svf
+import io.drivesymphony.engine.dsp.TapeSag
+import io.drivesymphony.engine.dsp.TapeSat
 import io.drivesymphony.engine.dsp.TapeWobble
 import io.drivesymphony.engine.dsp.clamp01
 import io.drivesymphony.engine.dsp.dbToGain
@@ -70,6 +74,8 @@ data class EngineState(
     val graced: Boolean = false,
     /** rendering with the light (CPU-saving) profile. */
     val light: Boolean = false,
+    /** tape sags so far (one per non-graced penalty): the audible "sink" gesture. */
+    val sags: Int = 0,
 )
 
 data class TripSummary(
@@ -143,6 +149,15 @@ class SymphonyEngine(
     private val revL = Reverb(sr, 0); private val revR = Reverb(sr, 23)
     private val limL = Limiter(sr); private val limR = Limiter(sr)
     private val dcL = DcBlock(); private val dcR = DcBlock()
+    // musical gestures (see render()): tape sag on a penalty, kick-driven pumping, tape warmth + glue on the master
+    private val sag = TapeSag(sr)
+    private val duck = Ducker(sr)
+    private val sat = TapeSat()
+    private val glue = GlueComp(sr)
+    private var sideAmt = 0f          // how much the kick pumps the other layers (lo-fi 1, others 0)
+    private var lastPulse = 0f
+    private var bloomAnnounced = false
+    private var sagCount = 0
     private val smoothCut = OnePole(sr).apply { setTimeConstant(0.03f); reset(8000f) }
     private val smoothGain = OnePole(sr).apply { setTimeConstant(0.03f); reset(1f) }
     private val smoothRev = OnePole(sr).apply { setTimeConstant(0.1f); reset(0.25f) }
@@ -300,6 +315,11 @@ class SymphonyEngine(
         drone.setRoot(currentChord.rootPc)
         val pr = if (bar < rewardUntilBar) p.copy(density = minOf(3f, p.density + 0.6f)) else p
         barEvents = arranger.bar(currentChord, nextChord, pr, ctx)
+        // section-closing riser (lo-fi, full groove only): a noise swell over the fill bar into the next downbeat
+        if (genre == Genre.LOFI && ctx.fill && !ctx.intro && pr.density >= 1.8f) texture.riser(clock.samplesForSteps(16f) / sr)
+        // melody arrival: one soft swell in the bar the lead first opens (re-armed once the bloom has faded)
+        if (p.bloom > 0.5f && !bloomAnnounced) { bloomAnnounced = true; if (genre != Genre.AMBIENT) texture.pulse() }
+        if (p.bloom < 0.3f) bloomAnnounced = false
     }
 
     private fun onStep(step: Int) {
@@ -347,7 +367,7 @@ class SymphonyEngine(
         run {
             val e = kind
             when (e) {
-                HitKind.KICK -> if (gDrums > 0.02f) drums.kick(vel)
+                HitKind.KICK -> if (gDrums > 0.02f) { drums.kick(vel); if (sideAmt > 0f) duck.hit() }
                 HitKind.SNARE -> if (gDrums > 0.02f) drums.snare(vel)
                 HitKind.HAT_C -> if (gHats > 0.02f) drums.hat(vel, false)
                 HitKind.HAT_O -> if (gHats > 0.02f) drums.hat(vel, true)
@@ -366,6 +386,17 @@ class SymphonyEngine(
     /** Audio thread. Writes interleaved stereo into [out] for [frames] frames. */
     fun render(out: FloatArray, frames: Int) {
         val p = targetParams
+        val score = scorer.state
+        // Penalty gesture: a new, non-graced penalty pulse sags the tape once (pitch and tempo dip for ~0.35 s, then
+        // snap back). Belt reminders (pulse 0.15) and graced manoeuvres (half pulse) never trigger it.
+        if (p.pulse > lastPulse + 0.3f && p.pulse >= 0.45f && !score.graced) {
+            val k = when (genre) { Genre.LOFI -> 1f; Genre.JAZZ -> 0.8f; Genre.AMBIENT -> 0.6f }
+            sag.trigger((0.08f + 0.2f * clamp01(p.pulse)) * k, 0.32f + 0.1f * p.pulse)
+            sagCount++
+        }
+        lastPulse = p.pulse
+        sideAmt = if (genre == Genre.LOFI) 1f else 0f
+        sat.drive = when (genre) { Genre.LOFI -> 1.5f; Genre.JAZZ -> 1.25f; Genre.AMBIENT -> 1.15f }
         // layer gains follow density continuously (so a dip is heard mid-bar, not only at the next bar)
         val d = if (clock.bar < rewardUntilBar) minOf(3f, p.density + 0.6f) else p.density
         densityEff = d
@@ -401,18 +432,19 @@ class SymphonyEngine(
             if (pendCount > 0) tickPending(p)
             val lt = smoothLight.process(lightTarget)
             mix.l = 0f; mix.r = 0f
-            ep.render(mix, gEp * 0.55f)
+            val du = duck.process() * sideAmt   // kick-driven pumping: pads and keys breathe with the groove
+            ep.render(mix, gEp * 0.55f * (1f - 0.3f * du))
             leadMix.l = 0f; leadMix.r = 0f
-            lead.render(leadMix, gLead * 0.4f)
+            lead.render(leadMix, gLead * 0.4f * (1f - 0.2f * du))
             if (lt < 0.999f) {
                 leadDly.write((leadMix.l + leadMix.r) * 0.5f)
                 val dbl = 0.3f * (1f - lt)
                 mix.l += leadMix.l + leadDly.readInt(430) * dbl
                 mix.r += leadMix.r + leadDly.readInt(290) * dbl
             } else { mix.l += leadMix.l; mix.r += leadMix.r }
-            bass.render(mix, gBass * 0.7f)
-            drone.render(mix, gDrone * 0.32f)
-            pad.render(mix, gPad * 0.5f)
+            bass.render(mix, gBass * 0.7f * (1f - 0.15f * du))
+            drone.render(mix, gDrone * 0.32f * (1f - 0.4f * du))
+            pad.render(mix, gPad * 0.5f * (1f - 0.45f * du))
             drums.render(mix, drumsGain * (if (gDrums < 0.02f) 0f else 1f) * (0.4f + 0.6f * gDrums))
             texture.render(mix, p.crackle * gTex, p.rain, 0.8f)
 
@@ -424,6 +456,7 @@ class SymphonyEngine(
             l = lpL.process(l); r = lpR.process(r)
             l = crushL.process(l); r = crushR.process(r)
             l = wobL.process(l); r = wobR.process(r)
+            sag.process(l, r); l = sag.outL; r = sag.outR   // pre-reverb: the tail stays in real time and masks the snap back
 
             // reverb send + stereo width (LIGHT: one reverb on the mid signal feeds both channels)
             val rv = smoothRev.process(p.reverbMix)
@@ -437,9 +470,14 @@ class SymphonyEngine(
             val side = (l - r) * 0.5f * w
             l = mid + side; r = mid - side
 
-            val g = smoothGain.process(targetGain) * 0.72f   // ~ -14 dBFS RMS on a smooth drive; limiter mostly idle
-            l = limL.process(dcL.process(l * g))
-            r = limR.process(dcR.process(r * g))
+            // master: tape warmth -> glue (at a fixed programme level, so the driving trim below is heard in full)
+            // -> the director's trim (the "sink") -> DC block -> safety limiter (mostly idle at ~ -14 dBFS RMS)
+            l = sat.process(l * 0.72f); r = sat.process(r * 0.72f)
+            val al = if (l < 0f) -l else l
+            val ar = if (r < 0f) -r else r
+            val gc = glue.gainFor(if (al > ar) al else ar) * smoothGain.process(targetGain)
+            l = limL.process(dcL.process(l * gc))
+            r = limR.process(dcR.process(r * gc))
             out[o++] = l; out[o++] = r
             val a = if (l < 0f) -l else l
             if (a > blockPeak) blockPeak = a
@@ -448,7 +486,6 @@ class SymphonyEngine(
         }
         peak = blockPeak
         elapsedSamples += frames
-        val score = scorer.state
         if (score.moving) { flowAccum += score.flow.toDouble() * frames; flowSamples += frames }
         if (p.bloom > 0.5f) bloomSamples += frames
         if (p.rain > 0.5f) rainSamples += frames
@@ -495,6 +532,7 @@ class SymphonyEngine(
             title = title,
             elapsedSec = elapsedSamples / sr,
             peak = peak,
+            sags = sagCount,
         )
     }
 

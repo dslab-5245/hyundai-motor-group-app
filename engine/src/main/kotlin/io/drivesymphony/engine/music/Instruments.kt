@@ -38,7 +38,7 @@ class EPiano(private val sr: Float, seed: Int, private val maxVoices: Int = 6, p
         fun on(m: Int, v: Float, durSamples: Long) {
             midi = m; vel = v; remaining = durSamples; age = 0
             op.setFrequency(midiToHz(m), 1f, if (m > 72) 4f else 7f)
-            tone.setCutoff(1800f + v * 5000f * bright)
+            tone.setCutoff(1400f + v * 4200f * bright)   // darker than a stage EP: the lo-fi/jazz register, still velocity-bright
             // keyboard stereo image: low notes left, high notes right (like a miked EP / piano)
             val pan = ((m - 64) / 22f).coerceIn(-0.6f, 0.6f)
             val pp = (pan + 1f) * 0.25f * 3.1415927f
@@ -281,8 +281,14 @@ class Texture(private val sr: Float, seed: Int) {
     private var swellT = -1f
     private val swellBp = Svf(sr).apply { set(900f, 0.5f) }
     private var hum = 0f
+    private var riserT = -1f
+    private var riserLen = 1f
+    private val riserBp = Svf(sr)
 
     fun pulse() { swellT = 0f }
+
+    /** Noise riser that builds over [seconds] (filter sweeping up) and stops exactly at the end: the next downbeat. */
+    fun riser(seconds: Float) { riserT = 0f; riserLen = seconds.coerceAtLeast(0.2f) }
 
     /** @param crackle 0..1 @param rain 0..1 */
     fun render(out: StereoOut, crackle: Float, rain: Float, gain: Float) {
@@ -310,10 +316,19 @@ class Texture(private val sr: Float, seed: Int) {
             sw = swellBp.bandpass * env * 0.6f
             swellT += inv; if (swellT > 6f) swellT = -1f
         }
+        var rs = 0f
+        if (riserT >= 0f) {
+            val u = riserT / riserLen
+            riserBp.set(400f + 5600f * u * u, 0.6f)
+            riserBp.process(rng.nextBipolar())
+            val tail = (riserLen - riserT) / 0.006f   // 6 ms fade so the stop itself never clicks
+            rs = riserBp.bandpass * u * u * (if (tail < 1f) tail.coerceAtLeast(0f) else 1f) * 0.3f
+            riserT += inv; if (riserT >= riserLen) riserT = -1f
+        }
         hum += 50f * inv; if (hum >= 1f) hum -= 1f
         val h = SineTable.sin01(hum) * crackle * 0.01f
-        out.l += (c * 1.05f + rn * 0.9f + sw + h) * gain
-        out.r += (c * 0.95f + rn * 1.1f + sw + h) * gain
+        out.l += (c * 1.05f + rn * 0.9f + sw + h + rs * 0.9f) * gain
+        out.r += (c * 0.95f + rn * 1.1f + sw + h + rs * 1.1f) * gain
     }
 }
 

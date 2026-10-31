@@ -86,6 +86,7 @@ object PreviewMain {
             }
         }
         File(outDir, "story_flow_timeline.tsv").writeText(sb.toString())
+        println("story: ${engine.state.sags} tape sags, events ${engine.summary().eventCounts}")
         println("Wrote story_flow_timeline.tsv")
     }
 }

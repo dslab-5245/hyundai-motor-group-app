@@ -1,4 +1,4 @@
-# Headless smoke test on the Pleos Connect emulator: boot -> install -> demo story -> (optional) real vehicle signals
+﻿# Headless smoke test on the Pleos Connect emulator: boot -> install -> demo story -> (optional) real vehicle signals
 # through the Virtual Console REST API -> collect evidence.
 #   powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\emulator-smoke.ps1 [-Apk path] [-Seconds 110] [-RealSignals] [-KeepRunning]
 # Evidence lands in <repo>\build\smoke\<timestamp>\ : logcat.txt, crashes.txt, top.txt (process), threads.txt (per thread),
@@ -60,9 +60,37 @@ Write-Host "== install $Apk" -ForegroundColor Cyan
 Adb install -r -g $Apk
 Adb logcat -c
 
+# The Pleos home puts the navigation app into the app slot a second or two after boot; an app launched before that
+# ends up hidden behind it (blank grey pane). Launch, verify the pane really shows our UI (screenshot: the pane is a
+# flat grey when another task covers us; our screens have text, ring and chips), relaunch while it does not.
+function Ensure-Front([int]$tries = 5) {
+    Add-Type -AssemblyName System.Drawing
+    for ($k = 0; $k -lt $tries; $k++) {
+        Adb shell am start -n "$pkg/.MainActivity" | Out-Null
+        Start-Sleep -Seconds 4
+        Adb shell screencap -p /sdcard/ds_front.png | Out-Null
+        Adb pull /sdcard/ds_front.png "$env:TEMP\ds_front.png" | Out-Null
+        $flat = $true
+        try {
+            $bmp = [System.Drawing.Bitmap]::FromFile("$env:TEMP\ds_front.png")
+            $lo = 255; $hi = 0
+            for ($x = 950; $x -lt 2500; $x += 80) { for ($y = 180; $y -lt 1200; $y += 85) {
+                $c = $bmp.GetPixel($x, $y); $l = [int](0.3 * $c.R + 0.59 * $c.G + 0.11 * $c.B)
+                if ($l -lt $lo) { $lo = $l }; if ($l -gt $hi) { $hi = $l }
+            } }
+            $bmp.Dispose()
+            $flat = ($hi - $lo) -lt 10
+        } catch { $flat = $false }
+        if (-not $flat) { return $true }
+        Write-Host "   app pane is flat grey (another task covers the app) -> relaunching" -ForegroundColor Yellow
+        Start-Sleep -Seconds 3
+    }
+    Write-Host "   WARNING: the app pane still looks blank" -ForegroundColor Red
+    return $false
+}
+
 Write-Host "== launch: activity, demo story via DEMO action, then PLAY" -ForegroundColor Cyan
-Adb shell am start -n "$pkg/.MainActivity" | Out-Null
-Start-Sleep -Seconds 4
+Ensure-Front | Out-Null
 Adb shell am startservice -n $svc -a io.drivesymphony.action.DEMO --ez on true --es scenario story | Out-Null
 Adb shell am startservice -n $svc -a io.drivesymphony.action.PLAY | Out-Null
 Start-Sleep -Seconds 6

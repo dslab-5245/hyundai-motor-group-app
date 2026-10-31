@@ -104,6 +104,10 @@ private fun FlowLines(engine: EngineState?, ui: ServiceUiState, accent: Color, m
         EventLine(engine)
         Spacer(Modifier.height(18.dp))
         LayerDots(engine?.layers ?: emptyList(), accent)
+        if (ui.recording) {
+            Spacer(Modifier.height(14.dp))
+            Chip(text = "● REC", color = Color(0xFFE5484D))   // developer recording tap: also the sync mark for demo videos
+        }
         if (ui.demo) {
             Spacer(Modifier.height(14.dp))
             Chip(text = "DEMO · 시나리오 재생 중", color = DsColors.warn)

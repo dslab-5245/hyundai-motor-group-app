@@ -167,16 +167,15 @@ class DelayLine(maxSamples: Int) {
     fun write(x: Float) { buf[w] = x; w++; if (w >= buf.size) w = 0 }
     fun read(delaySamples: Float): Float {
         val d = delaySamples.coerceIn(1f, (buf.size - 2).toFloat())
-        val rp = w - d
+        var rp = w - d                  // fractional read position: between index i (older) and i+1 (newer)
+        if (rp < 0f) rp += buf.size     // wrap before truncating (toInt() rounds toward zero)
         var i = rp.toInt()
         val frac = rp - i
-        if (i < 0) i += buf.size
-        var j = i - 1
-        if (j < 0) j += buf.size
-        // interpolate between sample at i (older by frac) and j
+        if (i >= buf.size) i -= buf.size   // float rounding right at the wrap
+        var k = i + 1
+        if (k >= buf.size) k = 0
         val a = buf[i]
-        val b = buf[j]
-        return a + (b - a) * frac
+        return a + (buf[k] - a) * frac
     }
     fun readInt(delaySamples: Int): Float {
         var i = w - delaySamples.coerceIn(1, buf.size - 1)
@@ -308,6 +307,109 @@ class PinkNoise(seed: Int) {
 class DcBlock {
     private var x1 = 0f; private var y1 = 0f
     fun process(x: Float): Float { val y = x - x1 + 0.995f * y1; x1 = x; y1 = y; return y }
+}
+
+/**
+ * Tape sag (stereo): for a moment the master runs slow, pitch and tempo dipping together like a tape machine losing
+ * speed, then it snaps back to real time through a 20 ms crossfade. The dip reads a delayed copy while the live
+ * signal keeps running underneath, so the groove never loses its place: the music sinks and recovers, which is the
+ * penalty gesture the concept asks for, never a punishment by silence. Idle cost: one delay write per channel.
+ */
+class TapeSag(private val sampleRate: Float) {
+    private val lineL = DelayLine((sampleRate * 0.5f).toInt())
+    private val lineR = DelayLine((sampleRate * 0.5f).toInt())
+    private var delay = 0f          // read position behind the write head, grows while slowed (samples)
+    private var t = 0f
+    private var dur = 0.3f
+    private var depth = 0f
+    private var fade = 0f
+    private var phase = 0           // 0 idle, 1 dipping, 2 crossfading back to live
+    private val fadeInc = 1f / (0.02f * sampleRate)
+    val active: Boolean get() = phase != 0
+    var outL = 0f
+        private set
+    var outR = 0f
+        private set
+
+    /** @param depth how far the speed drops at the bottom of the dip (0.25 = down to 75 %) @param seconds dip length */
+    fun trigger(depth: Float, seconds: Float) {
+        if (phase == 1) return   // already sagging: let it finish
+        this.depth = depth.coerceIn(0f, 0.6f); dur = seconds.coerceIn(0.1f, 0.8f)
+        t = 0f; delay = 0f; fade = 0f; phase = 1
+    }
+
+    /** Call once per frame; read [outL]/[outR] afterwards. */
+    fun process(l: Float, r: Float) {
+        lineL.write(l); lineR.write(r)
+        when (phase) {
+            0 -> { outL = l; outR = r }
+            1 -> {
+                // raised-cosine dip: speed 1 -> 1-depth at the middle -> 1 at the end, so the snap back happens at pitch
+                val u = t / dur
+                val speed = 1f - depth * 0.5f * (1f - cos(u * TWO_PI.toFloat()))
+                delay += 1f - speed
+                t += 1f / sampleRate
+                val d = delay + 1f
+                outL = lineL.read(d); outR = lineR.read(d)
+                if (t >= dur) { phase = 2; fade = 0f }
+            }
+            else -> {
+                fade += fadeInc
+                if (fade >= 1f) { phase = 0; delay = 0f; outL = l; outR = r }
+                else {
+                    val d = delay + 1f
+                    outL = lineL.read(d) * (1f - fade) + l * fade
+                    outR = lineR.read(d) * (1f - fade) + r * fade
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Sidechain-style ducking envelope ("pumping"): [hit] starts a ~2 ms rise to 1, then the level releases
+ * exponentially over [releaseSec]. Instruments multiply their gain by (1 - amount * level).
+ */
+class Ducker(sampleRate: Float, releaseSec: Float = 0.13f) {
+    private var level = 0f
+    private var rise = 0
+    private val riseSamples = (0.002f * sampleRate).toInt()
+    private val riseK = 1f - exp(-1f / (0.0007f * sampleRate))
+    private val rel = exp(-1f / (releaseSec * sampleRate))
+    fun hit() { rise = riseSamples }
+    fun process(): Float {
+        if (rise > 0) { level += (1f - level) * riseK; rise-- } else level *= rel
+        return level
+    }
+}
+
+/** Tape-style saturation: unity below about -6 dBFS, rounds peaks above it and adds a touch of even harmonics. */
+class TapeSat(var drive: Float = 1.3f) {
+    fun process(x: Float): Float {
+        val d = x * drive
+        return softClip(d + 0.05f * d * d) / drive
+    }
+}
+
+/**
+ * Stereo-linked "glue" compressor: 10 ms attack, 250 ms release, soft ratio. Call [gainFor] once per frame with the
+ * louder channel's magnitude and multiply both channels by the result (makeup included). One pow() per frame while
+ * the programme is above the threshold, nothing otherwise.
+ */
+class GlueComp(sampleRate: Float) {
+    private var env = 0f
+    private val att = exp(-1f / (0.010f * sampleRate))
+    private val rel = exp(-1f / (0.25f * sampleRate))
+    var threshold = 0.30f
+    var ratio = 2.2f
+    var makeup = 1.2f
+    var reduction = 1f
+        private set
+    fun gainFor(a: Float): Float {
+        env = if (a > env) att * env + (1f - att) * a else rel * env + (1f - rel) * a
+        reduction = if (env > threshold) (threshold / env).pow(1f - 1f / ratio) else 1f
+        return reduction * makeup
+    }
 }
 
 /** Equal-power pan: returns (left, right) gains for pan in [-1,1]. */
