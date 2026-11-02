@@ -89,8 +89,8 @@ STORY_CAPTIONS = [   # (story time start, end, text): the demo scenario timeline
     (0.5, 6.0, "강변북로 · 로파이\n출발과 함께 '이 길의 테마'가 시작됩니다 — 같은 길은 같은 테마"),
     (6.0, 12.5, "깜빡이를 켜고 도는 회전 → 즉시 보상: 레이어 하나가 더 열립니다"),
     (13.0, 19.5, "부드럽게 달릴수록 베이스·키·드럼이 차례로 쌓입니다"),
-    (20.0, 28.0, "브레이크 반복(습관) → 음악이 잠시 가라앉습니다\n테이프가 늘어지듯 가라앉고, 필터가 닫힙니다 · 침묵은 없습니다"),
-    (28.5, 43.5, "다시 부드럽게 → 5초마다 레이어가 하나씩 돌아옵니다"),
+    (20.0, 28.0, "브레이크 반복(습관) → 음악이 잠시 가라앉습니다\n테이프가 늘어지고 드럼이 멈추며 필터가 물속으로 · 침묵은 없습니다"),
+    (28.5, 43.5, "다시 부드럽게 → 라이저 뒤 다운비트에 레이어가 하나씩 돌아옵니다"),
     (44.0, 56.0, "고속도로 · 크루즈 컨트롤 → 드론 베드가 깔립니다"),
     (56.5, 76.0, "안정 주행이 이어지면 멜로디가 피어납니다(블룸)"),
     (78.0, 85.0, "부드러운 주행 25초 유지 → 가장 풍성한 편곡"),
@@ -106,7 +106,7 @@ CUE_CAPTIONS = {   # Virtual Console cue steps (scripts/virtual-console.py cue) 
     "4.": "20초 안정 주행 → 레이어가 차례로 열립니다",
     "5.": "급조향 + 브레이크 1회 → 긴급 회피로 인식: 숨만 고릅니다",
     "6.": "12초 안정 주행",
-    "7.": "브레이크 3연타 → 음악이 가라앉습니다(테이프 새그 · 필터 닫힘)",
+    "7.": "브레이크 3연타 → 음악이 가라앉습니다(테이프 새그 · 드럼 정지 · 필터 잠수)",
     "8.": "8초 안정 → 회복",
     "9.": "와이퍼 · 크루즈 → 비 텍스처 · 드론 베드",
     "10.": "뒷좌석 탑승 감지 → 피드백 강도 '약'으로",
@@ -182,8 +182,8 @@ def vertical_short(story_clean, t_event, start, seg_start=15.0, length=45.0):
     tw = d.textlength(tag, font=small); d.text(((1080 - tw) / 2, 1760), tag, font=small, fill=MUTED + (255,))
     ov = os.path.join(OUT, "short_overlay.png"); img.save(ov)
     cues = [(0.0, 4.5, "급제동·급조향을 하면\n음악이 잠시 가라앉습니다"),
-            (5.0, 12.5, "브레이크 반복 → 테이프가 늘어지듯\n필터가 닫히고 레이어가 줄어듭니다"),
-            (13.5, 22.0, "다시 부드럽게 달리면\n5초마다 레이어가 하나씩 돌아옵니다"),
+            (5.0, 12.5, "브레이크 반복 → 테이프가 늘어지고\n드럼이 멈추고 필터가 물속으로"),
+            (13.5, 22.0, "다시 부드럽게 달리면\n라이저 뒤 다운비트에 레이어가 돌아옵니다"),
             (23.0, 31.0, "조향·브레이크·깜빡이·와이퍼가 연주하는\n로파이 · 재즈 · 앰비언트"),
             (32.0, 39.0, "녹음된 곡이 아닙니다\n매 여정이 새 곡, 같은 길은 같은 테마"),
             (40.0, 45.0, "안전한 운전이 곧 더 좋은 음악\nDrive Symphony")]
@@ -222,6 +222,10 @@ def main():
         console = segment("console", off_c, caps, start_before=1.0, end_after=(steps[-1][0] + 9.0) if steps else None)
         if console: results["console"] = console
     if not results: raise SystemExit("nothing to assemble")
+    # sync.json: the per-segment offsets other pipelines (video/ad) need to place events on the clean cuts
+    sync = {name: {"badge_s": r[2][0], "event_s": r[2][1], "cut_start_s": r[2][2], "cut_end_s": r[2][3], "gain_db": r[2][4],
+                   "clean": os.path.basename(r[0])} for name, r in results.items()}
+    with open(os.path.join(OUT, "sync.json"), "w", encoding="utf-8") as f: json.dump(sync, f, indent=2, ensure_ascii=False)
     # --- cards + full 16:9 video
     parts = [card("intro", ["Drive Symphony", "주행이 연주가 되는 차"],
                   5.0, sub=["차량 신호가 실시간으로 작곡하는 로파이 · 재즈 · 앰비언트", "부드럽게 달릴수록 음악이 풍성해집니다"])]
