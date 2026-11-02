@@ -138,6 +138,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private var lastSags = 0
     private var tap: AudioTap? = null
     private var tapFile: java.io.File? = null
+    private var remixPublish = 0   // audio thread: samples since the last state publish in remix mode
     private var rearOccupiedApplied = false   // rear passengers -> feedback level forced to '약'
 
     override fun onCreate() {
@@ -189,6 +190,10 @@ class SymphonyService : MediaBrowserServiceCompat() {
             val tp = trackPlayer
             if (tp != null) { tp.read(buf, frames); trackProcessor.process(buf, buf, frames, engine.params) }
             else java.util.Arrays.fill(buf, 0, frames * 2, 0f)
+            // the engine is not rendering here, so publish its score/params state ourselves: the glance (flow ring,
+            // event captions) follows the drive in remix mode exactly as in generative mode
+            remixPublish += frames
+            if (remixPublish >= 1024) { remixPublish = 0; engine.publishIdleState() }
         } else {
             engine.render(buf, frames)
         }
@@ -427,6 +432,21 @@ class SymphonyService : MediaBrowserServiceCompat() {
         _ui.update { it.copy(demo = enabled, demoScenarioId = scenarioId) }
     }
 
+    /**
+     * Remix mode on the bundled sample track: lets a reviewer (or a driver without files on board) hear the variation
+     * without picking a file. The asset is copied once into the app's private files dir and then played like any
+     * local file, so the whole remix path (decoder, ring, TrackProcessor) is exercised, not a special case.
+     */
+    fun setRemixDemo(on: Boolean) {
+        if (!on) { setRemixTrack(null); return }
+        val f = java.io.File(filesDir, DEMO_TRACK)
+        runCatching {
+            if (!f.exists() || f.length() < 1000) assets.open(DEMO_TRACK).use { ins -> f.outputStream().use { ins.copyTo(it) } }
+            setRemixTrack(Uri.fromFile(f))
+            Log.i(TAG, "remix demo track: ${f.length() / 1024} KB")
+        }.onFailure { Log.w(TAG, "remix demo track failed", it); _ui.update { s -> s.copy(remixError = it.message) } }
+    }
+
     fun setRemixTrack(uri: Uri?) {
         trackPlayer?.stop(); trackPlayer = null
         if (uri == null) {
@@ -592,6 +612,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
             //   adb shell am startservice -n io.drivesymphony.app/.audio.SymphonyService -a io.drivesymphony.action.DEMO --ez on true --es scenario story
             ACTION_DEMO -> setDemo(intent.getBooleanExtra("on", true), intent.getStringExtra("scenario") ?: settings.demoScenarioId)
             ACTION_RECORD -> setRecording(intent.getBooleanExtra("on", true), intent.getStringExtra("path"))
+            ACTION_REMIX_DEMO -> setRemixDemo(intent.getBooleanExtra("on", true))
             GLEO_START, GLEO_SET_GENRE, GLEO_HOW_IS_MY_DRIVING, GLEO_PAUSE -> handleGleoIntent(intent)
         }
         // Pleos media-app rule: keep the foreground notification current whenever the service is (re)started while playing.
@@ -700,6 +721,9 @@ class SymphonyService : MediaBrowserServiceCompat() {
         const val ACTION_NEXT_GENRE = "io.drivesymphony.action.NEXT_GENRE"
         const val ACTION_DEMO = "io.drivesymphony.action.DEMO"
         const val ACTION_RECORD = "io.drivesymphony.action.RECORD"
+        const val ACTION_REMIX_DEMO = "io.drivesymphony.action.REMIX_DEMO"
+        /** bundled public-domain piano excerpt for remix mode (assets/demo_track_LICENSE.txt) */
+        const val DEMO_TRACK = "demo_track.ogg"
         // Gleo function names == intent actions (assets/schema.json)
         const val GLEO_START = "startSymphony"
         const val GLEO_SET_GENRE = "setGenre"

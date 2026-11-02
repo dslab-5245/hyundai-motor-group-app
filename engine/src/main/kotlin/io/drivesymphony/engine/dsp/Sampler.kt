@@ -71,7 +71,7 @@ class SfEnvelope(private val sr: Float) {
  * spread (low keys left, high keys right, like a miked piano) and an optional per-voice tone lowpass.
  * Deterministic: the only randomness is the seeded [Rng] used for [humanizeCents].
  */
-class Sampler(private val sr: Float, private val inst: SampleInstrument, private val maxVoices: Int = 8, seed: Int = 0) {
+class Sampler(private val sr: Float, private val inst: SampleInstrument, private val maxVoices: Int = 8, seed: Int = 0) : io.drivesymphony.engine.music.KeyVoice {
     /** Per-voice one-pole lowpass cutoff set at note-on; 0 = bypass. Like EPiano the cutoff can track velocity via [toneVelHz]. */
     var toneHz = 0f
     /** Added to [toneHz] times velocity, so loud notes open up (EPiano uses 1400 + vel * 4200). */
@@ -168,7 +168,7 @@ class Sampler(private val sr: Float, private val inst: SampleInstrument, private
     /** Number of voices currently sounding (for tests and diagnostics). */
     val activeVoices: Int get() { var n = 0; for (v in voices) if (v.env.isActive) n++; return n }
 
-    fun noteOn(midi: Int, vel: Float, durSamples: Long) {
+    override fun noteOn(midi: Int, vel: Float, durSamples: Long) {
         val v = vel.coerceIn(0.05f, 1f)
         val zone = inst.zoneFor(midi, (v * 127f).toInt().coerceIn(1, 127)) ?: return
         var pick: Voice? = null
@@ -184,9 +184,9 @@ class Sampler(private val sr: Float, private val inst: SampleInstrument, private
     /** Releases every voice playing [midi] (no-op when none does). */
     fun noteOff(midi: Int) { for (v in voices) if (v.env.isActive && v.midi == midi && !v.env.isReleasing) v.env.noteOff() }
 
-    fun allOff() { for (v in voices) v.env.noteOff() }
+    override fun allOff() { for (v in voices) v.env.noteOff() }
 
-    fun render(out: StereoOut, gain: Float) {
+    override fun render(out: StereoOut, gain: Float) {
         var sl = 0f; var sr2 = 0f
         for (v in voices) { val s = v.render(); if (s != 0f) { sl += s * v.gl; sr2 += s * v.gr } }
         val g = gain * level

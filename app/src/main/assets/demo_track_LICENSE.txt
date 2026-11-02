@@ -1,0 +1,6 @@
+demo_track.ogg - the in-app sample track for remix mode.
+
+J.S. Bach, Goldberg Variations BWV 988: Aria. Performed by Kimiko Ishizaka, "Open Goldberg Variations" (2012),
+released under the Creative Commons CC0 1.0 Universal public-domain dedication (no rights reserved).
+Source: https://archive.org/details/OpenGoldbergVariations (OGG Vorbis derivative of track 01).
+Prepared for the app: first 72 s, 3 s fade-out, loudness-normalised to -18 LUFS, re-encoded Vorbis q3 (1.2 MB).

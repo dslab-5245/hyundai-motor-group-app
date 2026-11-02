@@ -146,6 +146,7 @@ private fun Root(service: SymphonyService?, onPickTrack: () -> Unit, onShare: (T
                 onDemo = { on, id -> service.setDemo(on, id) },
                 onPickTrack = onPickTrack,
                 onClearTrack = { service.setRemixTrack(null) },
+                onDemoTrack = { service.setRemixDemo(true) },
                 onShare = onShare,
                 onAutoStart = service::setAutoStart,
             )

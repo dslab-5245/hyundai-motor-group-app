@@ -2,6 +2,7 @@ package io.drivesymphony.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +50,7 @@ fun ComposerScreen(
     onDemo: (Boolean, String) -> Unit,
     onPickTrack: () -> Unit,
     onClearTrack: () -> Unit,
+    onDemoTrack: () -> Unit,
     onShare: (TripSummary) -> Unit,
     onAutoStart: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -88,6 +90,12 @@ fun ComposerScreen(
                     ModeButton("음악 만들기", "주행이 곡을 생성", ui.mode == PlayMode.GENERATIVE, accent, Modifier.weight(1f)) { if (ui.mode == PlayMode.REMIX) onClearTrack() }
                     ModeButton("기존 음악 변주하기", ui.remixTrackTitle ?: "내 음원 선택 (USB·로컬)", ui.mode == PlayMode.REMIX, accent, Modifier.weight(1f)) { onPickTrack() }
                 }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "▶ 샘플 곡으로 체험하기 · Bach, Goldberg Aria (퍼블릭 도메인 CC0)",
+                    fontSize = 18.sp, color = accent,
+                    modifier = Modifier.clickable { onDemoTrack() }.padding(vertical = 6.dp),
+                )
                 ui.remixError?.let { Spacer(Modifier.height(6.dp)); Text(text = "재생 오류: $it", fontSize = 18.sp, color = DsColors.warn) }
                 if (ui.mode == PlayMode.REMIX) {
                     Spacer(Modifier.height(6.dp))

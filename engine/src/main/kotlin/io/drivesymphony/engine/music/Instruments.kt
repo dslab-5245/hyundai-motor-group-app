@@ -1,6 +1,8 @@
 package io.drivesymphony.engine.music
 
 import io.drivesymphony.engine.dsp.Adsr
+import io.drivesymphony.engine.dsp.DrumSampler
+import io.drivesymphony.engine.dsp.SampleInstrument
 import io.drivesymphony.engine.dsp.FmTine
 import io.drivesymphony.engine.dsp.Lfo
 import io.drivesymphony.engine.dsp.OnePole
@@ -20,11 +22,64 @@ import kotlin.math.sin
 /** Stereo sample pair used by instruments that render stereo. */
 class StereoOut { var l = 0f; var r = 0f }
 
+/** A keyed voice the engine can play: the FM/analogue synths below or a [io.drivesymphony.engine.dsp.Sampler]. */
+interface KeyVoice {
+    fun noteOn(midi: Int, vel: Float, durSamples: Long)
+    fun allOff()
+    /** Adds [gain]-scaled output to [out]; one call per sample frame. */
+    fun render(out: StereoOut, gain: Float)
+}
+
+/** A drum kit the engine can hit: the synth [Drums] or a [SampledKit]. */
+interface DrumKit {
+    var brushed: Boolean
+    fun kick(v: Float)
+    fun snare(v: Float)
+    fun hat(v: Float, open: Boolean)
+    fun ride(v: Float)
+    fun shaker(v: Float)
+    fun rim(v: Float)
+    fun render(out: StereoOut, gain: Float)
+}
+
+/**
+ * Sampled kits from the bundled bank (standard kit + optional brush kit, GM note numbers). Placement and levels are
+ * matched to the synth [Drums] so the arranger and the mix do not know which one is playing. The brush kit alternates
+ * the brush snare (38) with the swirl (40) so repeated hits do not sound like a machine gun; the shaker always comes
+ * from the standard kit (the brush kit has none).
+ */
+class SampledKit(sr: Float, standard: SampleInstrument, brush: SampleInstrument?, private val sub: Drums? = null) : DrumKit {
+    // trims measured against the synth kit (SamplerDemoMain): the SoundFont's ride and hats sit far below its snare
+    private val std = DrumSampler(sr, standard, 10).apply { levelDb = 10f; setNoteGainDb(36, 6f); setNoteGainDb(42, 11f); setNoteGainDb(46, 5f); setNoteGainDb(51, 11f); setNoteGainDb(70, -6f) }
+    private val br = brush?.let { DrumSampler(sr, it, 10).apply { levelDb = 10f; setNoteGainDb(36, 6f); setNoteGainDb(42, 11f); setNoteGainDb(46, 5f); setNoteGainDb(51, 9f); setNoteGainDb(40, -2f) } }
+    override var brushed = false
+    private var swirl = false
+    private val kit: DrumSampler get() = if (brushed && br != null) br else std
+    /** the sampled kick carries the click and the skin; the synth kick underneath adds the sub weight a lo-fi beat lives on */
+    override fun kick(v: Float) { kit.hit(36, v); if (!brushed) sub?.kick(v * 0.85f) }
+    override fun snare(v: Float) {
+        val b = br
+        if (brushed && b != null) { swirl = !swirl; b.hit(if (swirl && b.has(40)) 40 else 38, v) } else std.hit(38, v)
+    }
+    override fun hat(v: Float, open: Boolean) = kit.hit(if (open) 46 else 42, v)
+    override fun ride(v: Float) = kit.hit(51, v)
+    override fun shaker(v: Float) = std.hit(70, v)
+    override fun rim(v: Float) = kit.hit(37, v)
+    override fun render(out: StereoOut, gain: Float) { std.render(out, gain); br?.render(out, gain); sub?.render(out, gain * 0.9f) }
+}
+
+/** Two voices played as one: a sampled instrument on top, a synth underneath for weight (sub bass under a sampled bass). */
+class LayeredVoice(private val main: KeyVoice, private val under: KeyVoice, private val underGain: Float) : KeyVoice {
+    override fun noteOn(midi: Int, vel: Float, durSamples: Long) { main.noteOn(midi, vel, durSamples); under.noteOn(midi, vel, durSamples) }
+    override fun allOff() { main.allOff(); under.allOff() }
+    override fun render(out: StereoOut, gain: Float) { main.render(out, gain); under.render(out, gain * underGain) }
+}
+
 /**
  * FM electric piano ("tine" piano). 2-op FM body + bell partial, per-voice tone lowpass,
  * instrument-level stereo tremolo like a classic suitcase EP. Notes auto-release after their duration.
  */
-class EPiano(private val sr: Float, seed: Int, private val maxVoices: Int = 6, private val bright: Float = 1f) {
+class EPiano(private val sr: Float, seed: Int, private val maxVoices: Int = 6, private val bright: Float = 1f) : KeyVoice {
     private inner class Voice {
         val op = FmTine(sr)
         val env = Adsr(sr).apply { attack = 0.002f; decay = 1.6f; sustain = 0.18f; release = 0.5f }
@@ -61,15 +116,15 @@ class EPiano(private val sr: Float, seed: Int, private val maxVoices: Int = 6, p
     private val trem = Lfo(sr, 0.9f, rng.nextFloat())
     var tremoloDepth = 0.35f
 
-    fun noteOn(midi: Int, vel: Float, durSamples: Long) {
+    override fun noteOn(midi: Int, vel: Float, durSamples: Long) {
         var pick = voices.firstOrNull { !it.env.isActive }
         if (pick == null) pick = voices.maxByOrNull { it.age }
         pick!!.on(midi, vel.coerceIn(0.05f, 1f), durSamples)
     }
 
-    fun allOff() { voices.forEach { it.env.noteOff() } }
+    override fun allOff() { voices.forEach { it.env.noteOff() } }
 
-    fun render(out: StereoOut, gain: Float) {
+    override fun render(out: StereoOut, gain: Float) {
         var sl = 0f; var sr2 = 0f
         for (v in voices) { val s = v.render(); if (s != 0f) { sl += s * v.gl; sr2 += s * v.gr } }
         val t = trem.process()
@@ -81,7 +136,7 @@ class EPiano(private val sr: Float, seed: Int, private val maxVoices: Int = 6, p
 }
 
 /** Upright-ish bass: sine fundamental + filtered saw body + Karplus-Strong pluck transient, soft saturation. */
-class Bass(sr: Float, seed: Int) {
+class Bass(sr: Float, seed: Int) : KeyVoice {
     private val osc1 = Osc(sr)
     private val osc2 = Osc(sr)
     private val filt = Svf(sr)
@@ -91,7 +146,8 @@ class Bass(sr: Float, seed: Int) {
     private var remaining = 0L
     private var pluckLife = 0L
 
-    fun noteOn(midi: Int, v: Float, durSamples: Long) {
+    override fun noteOn(midi: Int, velIn: Float, durSamples: Long) {
+        val v = velIn
         val hz = midiToHz(midi)
         osc1.frequency = hz; osc2.frequency = hz
         vel = v.coerceIn(0.1f, 1f)
@@ -101,7 +157,9 @@ class Bass(sr: Float, seed: Int) {
         pluckLife = (0.25f * 48000f).toLong()
     }
 
-    fun render(out: StereoOut, gain: Float) {
+    override fun allOff() { env.noteOff() }
+
+    override fun render(out: StereoOut, gain: Float) {
         val active = env.isActive || pluckLife > 0
         if (!active) return
         val e = env.process()
@@ -170,7 +228,7 @@ class Pad(private val sr: Float, seed: Int, private val maxVoices: Int = 5) {
 }
 
 /** Synthesized drum kit: kick, lo-fi snare, closed/open hat, ride, shaker, rim. Brushed variants use softer envelopes. */
-class Drums(private val sr: Float, seed: Int) {
+class Drums(private val sr: Float, seed: Int) : DrumKit {
     private val rng = Rng(seed)
     private val pink = PinkNoise(seed + 11)
 
@@ -204,16 +262,16 @@ class Drums(private val sr: Float, seed: Int) {
     private var rimT = -1f; private var rimVel = 0f; private var rimPh = 0f
     private val dRim = decay(60f); private var eRim = 1f
 
-    var brushed = false
+    override var brushed = false
 
-    fun kick(v: Float) { kickT = 0f; kickVel = v; kickPh = 0f; eKickF = 1f; eKickBody = 1f; eKickClick = 1f }
-    fun snare(v: Float) { snT = 0f; snVel = v; snPh = 0f; snBrush = brushed; dSnNoise = if (snBrush) dSnBrush else dSnStick; eSnNoise = 1f; eSnTone = 1f }
-    fun hat(v: Float, open: Boolean) { hatT = 0f; hatVel = v; hatOpen = open; dHat = if (open) dHatOpen else dHatClosed; eHat = 1f }
-    fun ride(v: Float) { rideT = 0f; rideVel = v; ridePh = rng.nextFloat(); eRidePing = 1f; eRideWash = 1f }
-    fun shaker(v: Float) { shT = 0f; shVel = v; eSh = 1f }
-    fun rim(v: Float) { rimT = 0f; rimVel = v; rimPh = 0f; eRim = 1f }
+    override fun kick(v: Float) { kickT = 0f; kickVel = v; kickPh = 0f; eKickF = 1f; eKickBody = 1f; eKickClick = 1f }
+    override fun snare(v: Float) { snT = 0f; snVel = v; snPh = 0f; snBrush = brushed; dSnNoise = if (snBrush) dSnBrush else dSnStick; eSnNoise = 1f; eSnTone = 1f }
+    override fun hat(v: Float, open: Boolean) { hatT = 0f; hatVel = v; hatOpen = open; dHat = if (open) dHatOpen else dHatClosed; eHat = 1f }
+    override fun ride(v: Float) { rideT = 0f; rideVel = v; ridePh = rng.nextFloat(); eRidePing = 1f; eRideWash = 1f }
+    override fun shaker(v: Float) { shT = 0f; shVel = v; eSh = 1f }
+    override fun rim(v: Float) { rimT = 0f; rimVel = v; rimPh = 0f; eRim = 1f }
 
-    fun render(out: StereoOut, gain: Float) {
+    override fun render(out: StereoOut, gain: Float) {
         var l = 0f; var r = 0f
         val inv = 1f / sr
         if (kickT >= 0f) {

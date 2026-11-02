@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.drivesymphony.app.audio.PlayMode
 import io.drivesymphony.app.audio.ServiceUiState
 import io.drivesymphony.engine.EngineState
 import io.drivesymphony.engine.director.DriveEvent
@@ -93,17 +94,19 @@ private fun FlowRingBlock(flow: Float, pulse: Float, accent: Color, breath: Floa
 @Composable
 private fun FlowLines(engine: EngineState?, ui: ServiceUiState, accent: Color, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.Center) {
-        Text(text = engine?.title ?: "준비 중", fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = DsColors.text, maxLines = 1, lineHeight = 40.sp)
+        val remix = ui.mode == PlayMode.REMIX
+        Text(text = if (remix) (ui.remixTrackTitle ?: "내 음원 변주") else (engine?.title ?: "준비 중"), fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = DsColors.text, maxLines = 1, lineHeight = 40.sp)
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Chip(text = ui.genre.label, color = accent)
+            Chip(text = if (remix) "변주" else ui.genre.label, color = accent)
             Spacer(Modifier.width(12.dp))
-            Text(text = engine?.let { "${it.chordLabel}  ·  ${it.bpm.toInt()} BPM" } ?: "", fontSize = 26.sp, color = DsColors.muted)
+            Text(text = if (remix) "내 음원 · 같은 주행 규칙으로 변주 중" else engine?.let { "${it.chordLabel}  ·  ${it.bpm.toInt()} BPM" } ?: "", fontSize = 26.sp, color = DsColors.muted)
         }
         Spacer(Modifier.height(18.dp))
         EventLine(engine)
         Spacer(Modifier.height(18.dp))
-        LayerDots(engine?.layers ?: emptyList(), accent)
+        if (remix) Text(text = "원곡 · 로우패스 · 테이프 새그 · 스테레오 폭이 주행을 따릅니다", fontSize = 20.sp, color = DsColors.muted)
+        else LayerDots(engine?.layers ?: emptyList(), accent)
         if (ui.recording) {
             Spacer(Modifier.height(14.dp))
             Chip(text = "● REC", color = Color(0xFFE5484D))   // developer recording tap: also the sync mark for demo videos

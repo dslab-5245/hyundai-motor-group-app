@@ -85,6 +85,13 @@ def srt(path, cues):
             f.write(f"{k}\n{ts(a)} --> {ts(b)}\n{text}\n\n")
 
 
+REMIX_CAPTIONS = [   # remix mode: the bundled sample track under the same demo story
+    (0.5, 8.0, "내 음원 변주 모드 · 샘플 곡: Bach, Goldberg Aria (퍼블릭 도메인 CC0)\n같은 주행 신호가 이번엔 '기존 곡'을 변주합니다"),
+    (9.0, 14.5, "깜빡이를 켜고 도는 회전 → 곡이 열립니다(고역·스테레오 폭)"),
+    (20.0, 28.0, "급조작 → 곡이 물속으로: 테이프가 늘어지고 로우패스·워블이 걸립니다 · 끊기지 않습니다"),
+    (28.5, 44.0, "다시 부드럽게 → 곡이 원래 모습으로 돌아옵니다"),
+]
+
 STORY_CAPTIONS = [   # (story time start, end, text): the demo scenario timeline (engine/.../Scenarios.kt story)
     (0.5, 6.0, "강변북로 · 로파이\n출발과 함께 '이 길의 테마'가 시작됩니다 — 같은 길은 같은 테마"),
     (6.0, 12.5, "깜빡이를 켜고 도는 회전 → 즉시 보상: 레이어 하나가 더 열립니다"),
@@ -221,6 +228,11 @@ def main():
         off_c = timing["console_cue"] - timing.get("console_record", 0)
         console = segment("console", off_c, caps, start_before=1.0, end_after=(steps[-1][0] + 9.0) if steps else None)
         if console: results["console"] = console
+    # --- remix (the bundled sample track under the same story)
+    if "remix_demo" in timing and os.path.exists(os.path.join(OUT, "ds_remix.wav")):
+        off_r = timing["remix_demo"] - timing.get("remix_record", 0)
+        remix = segment("remix", off_r, REMIX_CAPTIONS, start_before=1.0, end_after=45.0)
+        if remix: results["remix"] = remix
     if not results: raise SystemExit("nothing to assemble")
     # sync.json: the per-segment offsets other pipelines (video/ad) need to place events on the clean cuts
     sync = {name: {"badge_s": r[2][0], "event_s": r[2][1], "cut_start_s": r[2][2], "cut_end_s": r[2][3], "gain_db": r[2][4],
@@ -235,6 +247,9 @@ def main():
     if "console" in results:
         parts.append(card("console", ["시연 2 · 실제 차량 신호", "Pleos Connect 에뮬레이터 Virtual Console → Vehicle SDK → 음악 (데모 꺼짐)"], 4.0))
         parts.append(results["console"][1])
+    if "remix" in results:
+        parts.append(card("remix", ["시연 3 · 내 음원 변주", "같은 주행 신호가 기존 곡을 변주합니다 · 샘플: Bach, Goldberg Aria (CC0)"], 4.0))
+        parts.append(results["remix"][1])
     parts.append(card("outro", ["주행이 연주가 되는 차", "Drive Symphony"], 7.0,
                       sub=["조향 · 브레이크 · 기어 · 깜빡이 · 와이퍼 · 크루즈 · 내비 → 실시간 작곡",
                            "안전하지 않은 조작은 음악이 잠시 가라앉을 뿐, 침묵도 꾸중도 없습니다",

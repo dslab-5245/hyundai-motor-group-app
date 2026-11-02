@@ -121,7 +121,20 @@ if (-not $SkipConsole) {
     }
 }
 
-Adb logcat -d -s SymphonyService AudioTap AudioOutput PleosVehicleSource | Out-File -Encoding utf8 "$Out\logcat.txt"
+# ---- segment 3: remix mode on the bundled sample track (public-domain piano), driven by the same demo story
+Adb shell am startservice -n $svc -a io.drivesymphony.action.DEMO --ez on false | Out-Null
+Adb shell am startservice -n $svc -a io.drivesymphony.action.REMIX_DEMO --ez on true | Out-Null
+Start-Sleep -Seconds 4
+Record-Segment 'remix' 60 {
+    $timing['remix_demo'] = Now
+    Adb shell am startservice -n $svc -a io.drivesymphony.action.DEMO --ez on true --es scenario story | Out-Null
+    Adb shell am startservice -n $svc -a io.drivesymphony.action.PLAY | Out-Null
+    Start-Sleep -Seconds 46
+}
+Adb shell am startservice -n $svc -a io.drivesymphony.action.DEMO --ez on false | Out-Null
+Adb shell am startservice -n $svc -a io.drivesymphony.action.REMIX_DEMO --ez on false | Out-Null
+
+Adb logcat -d -s SymphonyService AudioTap AudioOutput PleosVehicleSource LocalTrackPlayer | Out-File -Encoding utf8 "$Out\logcat.txt"
 $timing | ConvertTo-Json | Out-File -Encoding ascii "$Out\timing.json"
 if (-not $KeepRunning) { Adb shell am force-stop $pkg | Out-Null; Adb emu kill | Out-Null }
 

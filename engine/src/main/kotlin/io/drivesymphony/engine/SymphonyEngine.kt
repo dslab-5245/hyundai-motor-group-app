@@ -16,6 +16,8 @@ import io.drivesymphony.engine.dsp.Limiter
 import io.drivesymphony.engine.dsp.OnePole
 import io.drivesymphony.engine.dsp.Reverb
 import io.drivesymphony.engine.dsp.Rng
+import io.drivesymphony.engine.dsp.SampleBank
+import io.drivesymphony.engine.dsp.Sampler
 import io.drivesymphony.engine.dsp.Svf
 import io.drivesymphony.engine.dsp.TapeSag
 import io.drivesymphony.engine.dsp.TapeSat
@@ -29,7 +31,11 @@ import io.drivesymphony.engine.music.Drone
 import io.drivesymphony.engine.music.BarContext
 import io.drivesymphony.engine.music.Bass
 import io.drivesymphony.engine.music.Clock
+import io.drivesymphony.engine.music.DrumKit
 import io.drivesymphony.engine.music.Drums
+import io.drivesymphony.engine.music.KeyVoice
+import io.drivesymphony.engine.music.LayeredVoice
+import io.drivesymphony.engine.music.SampledKit
 import io.drivesymphony.engine.music.EPiano
 import io.drivesymphony.engine.music.HitKind
 import io.drivesymphony.engine.music.Pad
@@ -135,14 +141,25 @@ class SymphonyEngine(
     private val clock = Clock(sampleRate)
     private var baseBpm = 80f   // the genre's tempo; the live tempo drags up to 10 % below it while the flow is low
 
-    // instruments
-    private val ep = EPiano(sr, seed + 1)
-    private val lead = EPiano(sr, seed + 2, maxVoices = 3, bright = 1.4f).apply { tremoloDepth = 0.15f }
-    private val bass = Bass(sr, seed + 3)
+    // Instruments. With the bundled sample bank (FluidR3_GM, MIT): Rhodes keys, vibraphone melody and sparkle, acoustic
+    // bass (jazz, ambient) or fingered electric bass (lo-fi), standard / brush kits. Without it (resource missing) the
+    // original synths play, so tests and the preview tool never depend on the asset. Levels follow SamplerDemoMain's
+    // measurements so a bank swap does not move the mix.
+    private val bank: SampleBank? = sampleBank
+    private val ep: KeyVoice = bank?.get("ep")?.let { Sampler(sr, it, 6, seed + 1).apply { levelDb = 8f; humanizeCents = 2f } } ?: EPiano(sr, seed + 1)
+    private val lead: KeyVoice = bank?.get("vibes")?.let { Sampler(sr, it, 3, seed + 2).apply { levelDb = 6f; humanizeCents = 2f } }
+        ?: EPiano(sr, seed + 2, maxVoices = 3, bright = 1.4f).apply { tremoloDepth = 0.15f }
+    private val bassSynth = Bass(sr, seed + 3)   // alone without the bank; the sub layer under the sampled basses with it
+    private val bassAcoustic: KeyVoice = bank?.get("bass")?.let { LayeredVoice(Sampler(sr, it, 2, seed + 3).apply { levelDb = 4f }, bassSynth, 0.5f) } ?: bassSynth
+    private val bassElectric: KeyVoice = bank?.get("fbass")?.let { LayeredVoice(Sampler(sr, it, 2, seed + 13).apply { levelDb = 4f }, bassSynth, 0.6f) } ?: bassAcoustic
+    private var bass: KeyVoice = bassAcoustic
     private val pad = Pad(sr, seed + 4)
-    private val drums = Drums(sr, seed + 5)
+    private val drums: DrumKit = bank?.get("drums")?.let { SampledKit(sr, it, bank["brush"], sub = Drums(sr, seed + 5)) } ?: Drums(sr, seed + 5)
     private val texture = Texture(sr, seed + 6)
-    private val sparkle = EPiano(sr, seed + 9, maxVoices = 7, bright = 1.8f).apply { tremoloDepth = 0.05f }   // reward arpeggios
+    private val sparkle: KeyVoice = bank?.get("vibes")?.let { Sampler(sr, it, 7, seed + 9).apply { levelDb = 7f } }
+        ?: EPiano(sr, seed + 9, maxVoices = 7, bright = 1.8f).apply { tremoloDepth = 0.05f }   // reward arpeggios
+    /** true when the sampled instruments are playing (UI / README evidence). */
+    val sampled: Boolean get() = bank != null
 
     // master chain (stereo)
     private val lpL = Svf(sr); private val lpR = Svf(sr)
@@ -281,6 +298,7 @@ class SymphonyEngine(
         clock.bpm = baseBpm
         clock.swing = when (g) { Genre.LOFI -> 0.57f + rng.nextFloat() * 0.04f; Genre.JAZZ -> 0.64f; Genre.AMBIENT -> 0.5f }
         drums.brushed = g == Genre.JAZZ
+        bass.allOff(); bass = if (g == Genre.LOFI) bassElectric else bassAcoustic
         pad.cutoffBase = when (g) { Genre.AMBIENT -> 420f; Genre.LOFI -> 520f; Genre.JAZZ -> 700f }
         ep.allOff(); lead.allOff(); pad.allOff(); sparkle.allOff()
         pendCount = 0
@@ -626,6 +644,8 @@ class SymphonyEngine(
     fun isParked(): Boolean = lastSignals.gear == Gear.PARK
 
     companion object {
+        /** The bundled sample bank, loaded once per process and shared by every engine (4.8 MB of PCM). */
+        val sampleBank: SampleBank? by lazy { SampleBank.loadDefault() }
         private const val PUBLISH_INTERVAL = 1024
         private const val SECTION_BARS = 8
         private const val PENDING_MAX = 48

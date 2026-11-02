@@ -6,6 +6,7 @@ import io.drivesymphony.engine.dsp.Limiter
 import io.drivesymphony.engine.dsp.OnePole
 import io.drivesymphony.engine.dsp.Reverb
 import io.drivesymphony.engine.dsp.Svf
+import io.drivesymphony.engine.dsp.TapeSag
 import io.drivesymphony.engine.dsp.TapeWobble
 import io.drivesymphony.engine.dsp.dbToGain
 
@@ -27,10 +28,15 @@ class TrackProcessor(sampleRate: Int, seed: Int = 7) {
     private val sGain = OnePole(sr).apply { setTimeConstant(0.03f); reset(1f) }
     private val sWidth = OnePole(sr).apply { setTimeConstant(0.1f); reset(1f) }
     private val sRev = OnePole(sr).apply { setTimeConstant(0.1f) }
+    private val sag = TapeSag(sr)   // the same stumble as the generative engine, a little shallower
+    private var lastPulse = 0f
 
     fun process(input: FloatArray, output: FloatArray, frames: Int, p: MusicParams) {
         // remix mapping is gentler than the generative one: a song should stay recognizable
-        val cutoff = (p.cutoffHz * 1.3f).coerceIn(1200f, 18000f)
+        val cutoff = (p.cutoffHz * 1.3f).coerceIn(600f, 18000f)
+        // a non-graced penalty (pulse 1) sags the tape once; a graced one (pulse 0.5) only dips the filter
+        if (p.pulse > lastPulse + 0.3f && p.pulse >= 0.7f) sag.trigger(0.16f + 0.2f * p.pulse, 0.45f)
+        lastPulse = p.pulse
         lpL.set(cutoff, 0.02f); lpR.set(cutoff, 0.02f)
         wobL.depth = p.wobble * 0.7f; wobR.depth = p.wobble * 0.7f
         crushL.amount = p.crush * 0.5f; crushR.amount = p.crush * 0.5f
@@ -41,6 +47,7 @@ class TrackProcessor(sampleRate: Int, seed: Int = 7) {
             l = lpL.process(l); r = lpR.process(r)
             l = crushL.process(l); r = crushR.process(r)
             l = wobL.process(l); r = wobR.process(r)
+            sag.process(l, r); l = sag.outL; r = sag.outR
             val rv = sRev.process(p.reverbMix * 0.35f)
             l += revL.process(l) * rv; r += revR.process(r) * rv
             val w = sWidth.process(0.6f + p.width * 0.4f)
