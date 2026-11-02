@@ -1,0 +1,8 @@
+node_modules/
+out/
+public/run/
+public/broll/
+public/fonts/
+public/gen/
+.remotion/
+tools/__pycache__/
