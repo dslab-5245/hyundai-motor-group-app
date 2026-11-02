@@ -31,7 +31,7 @@ foreach ($f in 'story_clean.mp4', 'logcat.txt') { if (-not (Test-Path (Join-Path
 # 0. project dependencies (first run only)
 Push-Location $proj
 try {
-    if (-not (Test-Path (Join-Path $proj 'node_modules\remotion'))) { Step 'npm install'; & npm install --no-audit --no-fund | Tee-Object -Append $log | Out-Null }
+    if (-not (Test-Path (Join-Path $proj 'node_modules\remotion'))) { Step 'npm install'; & npm install --no-audit --no-fund | ForEach-Object { Add-Content -Encoding utf8 $log $_ } }
     if (-not (Test-Path (Join-Path $pub 'fonts\Pretendard-Bold.otf'))) {
         Step 'fetching Pretendard (OFL)'
         $tmp = Join-Path $env:TEMP ("pretendard-" + [guid]::NewGuid().ToString('n')); New-Item -ItemType Directory -Force $tmp | Out-Null
@@ -74,7 +74,7 @@ try {
             Step "rendering $comp"
             $ra = @('remotion', 'render', 'src/index.ts', $comp, $raw, '--codec', 'h264', '--crf', '18', '--audio-bitrate', '256k', '--pixel-format', 'yuv420p', '--log', 'warn', '--gl', 'angle')
             if ($Concurrency -gt 0) { $ra += @('--concurrency', "$Concurrency") }
-            & npx @ra | Tee-Object -Append $log | Select-Object -Last 3
+            & npx @ra | ForEach-Object { if ($_ -notmatch '^\s*Rendered \d+/') { Add-Content -Encoding utf8 $log $_ }; $_ } | Select-Object -Last 2
             if ($LASTEXITCODE -ne 0 -or -not (Test-Path $raw)) { throw "render of $comp failed (see $log)" }
             Step "loudness $comp"
             Py @("$proj\tools\post.py", 'finalize', $raw, $final)
@@ -85,6 +85,8 @@ try {
             Py @("$proj\tools\post.py", 'sheet', (Join-Path $Out 'ad_16x9.mp4'), (Join-Path $Out 'contact_sheet.png'), '12')
         }
         foreach ($comp in $Only) { Py @("$proj\tools\post.py", 'events', (Join-Path $Out $outputs[$comp]), (Join-Path $Out 'plan.json'), $comp, (Join-Path $Out ("event_frames_" + $comp + ".png"))) }
+        Step 'verify (streams, loudness, call-out vs music dip)'
+        Py @("$proj\tools\verify.py", $Out)
     }
 } finally { Pop-Location }
 Step "done: $Out"
