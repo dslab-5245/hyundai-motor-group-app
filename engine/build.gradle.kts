@@ -33,3 +33,14 @@ tasks.register<JavaExec>("renderPreviews") {
     mainClass.set("io.drivesymphony.engine.tools.PreviewMain")
     args(rootProject.layout.projectDirectory.dir("previews").asFile.absolutePath)
 }
+
+// Renders a 12-second WAV per sampled instrument of the bundled FluidR3 bank (scale + chords, drum pattern) and the
+// synth EP playing the same phrase as a level reference.
+// Usage: gradlew :engine:samplerDemo   -> writes to engine/build/sampler-demo/*.wav
+tasks.register<JavaExec>("samplerDemo") {
+    group = "drive-symphony"
+    description = "Render demo WAVs for each sampled instrument in the bundled sample bank."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.drivesymphony.engine.tools.SamplerDemoMain")
+    args(layout.buildDirectory.dir("sampler-demo").get().asFile.absolutePath)
+}

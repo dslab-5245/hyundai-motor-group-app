@@ -1,0 +1,1415 @@
+{
+ "format": "DSBK v1 (see engine/src/main/kotlin/io/drivesymphony/engine/dsp/SampleBank.kt)",
+ "source": {
+  "file": "FluidR3_GM.sf2",
+  "name": "Fluid R3 GM",
+  "version": "2.1",
+  "copyright": "Frank Wen 2000-2002, 2008; Toby Smithe 2008",
+  "engineer": "Frank Wen",
+  "comment": "Licensed under the MIT License."
+ },
+ "license": "MIT (Frank Wen, 2000-2002, 2008); see LICENSE-FluidR3.txt",
+ "generator": "scripts/sf2_extract.py",
+ "budgetBytes": 10000000,
+ "totalBytes": 4809464,
+ "instruments": [
+  {
+   "name": "ep",
+   "source": {
+    "bank": 0,
+    "program": 4,
+    "name": "Rhodes EP"
+   },
+   "bytes": 1059554,
+   "zoneCount": 11,
+   "downsampledTo32k": false,
+   "normaliseShiftDb": 12.16,
+   "envelope": {
+    "attack": 0.001,
+    "hold": 0.5,
+    "decay": 13.2003,
+    "sustain": 0.0,
+    "release": 0.1601
+   },
+   "zones": [
+    {
+     "key": [
+      36,
+      38
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 36,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 102896,
+     "loop": [
+      102184,
+      102857
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes C3(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      39,
+      44
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 40,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 82840,
+     "loop": [
+      82256,
+      82791
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes E3(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      45,
+      51
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 48,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 72040,
+     "loop": [
+      71845,
+      72014
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes C4(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      52,
+      57
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 55,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 44963,
+     "loop": [
+      44674,
+      44899
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes G4(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      58,
+      63
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 60,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 32064,
+     "loop": [
+      31525,
+      32030
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes C5(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      64,
+      69
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 67,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 39680,
+     "loop": [
+      39435,
+      39660
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes G5(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      70,
+      75
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 72,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 38920,
+     "loop": [
+      38598,
+      38893
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes C6(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      76,
+      81
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 79,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 30324,
+     "loop": [
+      29894,
+      30316
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes G6(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      82,
+      87
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 84,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 46680,
+     "loop": [
+      45976,
+      46649
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes C7(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      88,
+      93
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 91,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 19578,
+     "loop": [
+      19402,
+      19571
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes G7(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      94,
+      96
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 96,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 19792,
+     "loop": [
+      19534,
+      19776
+     ],
+     "gainDb": -1.84,
+     "sample": "Rhodes C8(L)",
+     "sourceRate": 22050,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0
+    }
+   ]
+  },
+  {
+   "name": "bass",
+   "source": {
+    "bank": 0,
+    "program": 32,
+    "name": "Acoustic Bass"
+   },
+   "bytes": 448212,
+   "zoneCount": 6,
+   "downsampledTo32k": true,
+   "normaliseShiftDb": -3.0,
+   "envelope": {
+    "attack": 0.001,
+    "hold": 1.05,
+    "decay": 15.2507,
+    "sustain": 0.0,
+    "release": 0.1601
+   },
+   "zones": [
+    {
+     "key": [
+      28,
+      32
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 28,
+     "fineCents": 0,
+     "rate": 32000,
+     "frames": 57170,
+     "loop": [
+      55569,
+      57123
+     ],
+     "gainDb": -3.0,
+     "sample": "Acoustic Bass E2",
+     "sourceRate": 44100,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 6.36e-09
+    },
+    {
+     "key": [
+      33,
+      38
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 36,
+     "fineCents": 1,
+     "rate": 32000,
+     "frames": 38068,
+     "loop": [
+      37561,
+      38051
+     ],
+     "gainDb": -3.0,
+     "sample": "Acoustic Bass C3",
+     "sourceRate": 44100,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 4.71e-09
+    },
+    {
+     "key": [
+      39,
+      43
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 41,
+     "fineCents": -1,
+     "rate": 32000,
+     "frames": 38783,
+     "loop": [
+      38370,
+      38737
+     ],
+     "gainDb": -3.0,
+     "sample": "Acoustic Bass F3",
+     "sourceRate": 44100,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 2.65e-09
+    },
+    {
+     "key": [
+      44,
+      50
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 46,
+     "fineCents": 0,
+     "rate": 32000,
+     "frames": 32483,
+     "loop": [
+      31888,
+      32438
+     ],
+     "gainDb": -3.0,
+     "sample": "Acoustic Bass A#3",
+     "sourceRate": 44100,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 7.69e-09
+    },
+    {
+     "key": [
+      51,
+      57
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 54,
+     "fineCents": -1,
+     "rate": 32000,
+     "frames": 26641,
+     "loop": [
+      26278,
+      26624
+     ],
+     "gainDb": -3.0,
+     "sample": "Acoustic Bass F#4",
+     "sourceRate": 44100,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 3.54e-08
+    },
+    {
+     "key": [
+      58,
+      60
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 60,
+     "fineCents": -1,
+     "rate": 32000,
+     "frames": 30961,
+     "loop": [
+      30572,
+      30939
+     ],
+     "gainDb": -3.0,
+     "sample": "Acoustic Bass C5",
+     "sourceRate": 44100,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 1.44e-07
+    }
+   ]
+  },
+  {
+   "name": "fbass",
+   "source": {
+    "bank": 0,
+    "program": 33,
+    "name": "Fingered Bass"
+   },
+   "bytes": 919776,
+   "zoneCount": 6,
+   "downsampledTo32k": false,
+   "normaliseShiftDb": -3.0,
+   "envelope": {
+    "attack": 0.001,
+    "hold": 3.0001,
+    "decay": 30.9977,
+    "sustain": 0.0,
+    "release": 0.2
+   },
+   "zones": [
+    {
+     "key": [
+      28,
+      30
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 28,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 84645,
+     "loop": [
+      84046,
+      84581
+     ],
+     "gainDb": -3.0,
+     "sample": "Finger Bass EO",
+     "sourceRate": 22050,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      31,
+      34
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 32,
+     "fineCents": -4,
+     "rate": 22050,
+     "frames": 70109,
+     "loop": [
+      69621,
+      70045
+     ],
+     "gainDb": -3.0,
+     "sample": "Finger Bass E4",
+     "sourceRate": 22050,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      35,
+      37
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 36,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 76264,
+     "loop": [
+      75898,
+      76236
+     ],
+     "gainDb": -3.0,
+     "sample": "Finger Bass A3",
+     "sourceRate": 22050,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      38,
+      41
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 39,
+     "fineCents": 2,
+     "rate": 22050,
+     "frames": 68592,
+     "loop": [
+      67984,
+      68552
+     ],
+     "gainDb": -3.0,
+     "sample": "Finger Bass D1",
+     "sourceRate": 22050,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      42,
+      45
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 43,
+     "fineCents": 1,
+     "rate": 22050,
+     "frames": 95798,
+     "loop": [
+      95058,
+      95734
+     ],
+     "gainDb": -3.0,
+     "sample": "Finger Bass GO",
+     "sourceRate": 22050,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 0.0
+    },
+    {
+     "key": [
+      46,
+      60
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 48,
+     "fineCents": 0,
+     "rate": 22050,
+     "frames": 64480,
+     "loop": [
+      63955,
+      64461
+     ],
+     "gainDb": -3.0,
+     "sample": "Finger Bass G5",
+     "sourceRate": 22050,
+     "stereoAveraged": false,
+     "sourcePan": 0,
+     "hfEnergyAbove12k": 0.0
+    }
+   ]
+  },
+  {
+   "name": "vibes",
+   "source": {
+    "bank": 0,
+    "program": 11,
+    "name": "Vibraphone"
+   },
+   "bytes": 139698,
+   "zoneCount": 9,
+   "downsampledTo32k": false,
+   "normaliseShiftDb": 9.62,
+   "envelope": {
+    "attack": 0.001,
+    "hold": 0.0,
+    "decay": 5.499,
+    "sustain": 0.0,
+    "release": 0.8001
+   },
+   "zones": [
+    {
+     "key": [
+      55,
+      60
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 57,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 17728,
+     "loop": [
+      14677,
+      17684
+     ],
+     "gainDb": -2.98,
+     "sample": "Vibraphone A4(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 4.95e-08
+    },
+    {
+     "key": [
+      61,
+      64
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 63,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 9430,
+     "loop": [
+      8998,
+      9423
+     ],
+     "gainDb": -2.98,
+     "sample": "Vibraphone D#5(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 2.75e-07
+    },
+    {
+     "key": [
+      65,
+      68
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 66,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 9608,
+     "loop": [
+      9361,
+      9600
+     ],
+     "gainDb": -2.98,
+     "sample": "Vibraphone F#5(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 8.7e-07
+    },
+    {
+     "key": [
+      69,
+      74
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 71,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 7036,
+     "loop": [
+      6939,
+      7028
+     ],
+     "gainDb": -2.98,
+     "sample": "Vibraphone B5(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 3.8e-06
+    },
+    {
+     "key": [
+      75,
+      79
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 78,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 6130,
+     "loop": [
+      6006,
+      6125
+     ],
+     "gainDb": -2.98,
+     "sample": "Vibraphone F#6(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 2.48e-05
+    },
+    {
+     "key": [
+      80,
+      83
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 81,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 4633,
+     "loop": [
+      4376,
+      4627
+     ],
+     "gainDb": -2.98,
+     "sample": "Vibraphone A6(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.000156
+    },
+    {
+     "key": [
+      84,
+      86
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 85,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 5317,
+     "loop": [
+      5155,
+      5314
+     ],
+     "gainDb": -2.98,
+     "sample": "Vibraphone C#7(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 2.91e-05
+    },
+    {
+     "key": [
+      87,
+      91
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 88,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 4723,
+     "loop": [
+      4649,
+      4716
+     ],
+     "gainDb": -2.98,
+     "sample": "Vibraphone E7(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.000203
+    },
+    {
+     "key": [
+      92,
+      96
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 94,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 5244,
+     "loop": [
+      5096,
+      5238
+     ],
+     "gainDb": -2.98,
+     "sample": "Vibraphone A#7(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.00098
+    }
+   ]
+  },
+  {
+   "name": "drums",
+   "source": {
+    "bank": 128,
+    "program": 0,
+    "name": "Standard"
+   },
+   "bytes": 530752,
+   "zoneCount": 7,
+   "downsampledTo32k": false,
+   "normaliseShiftDb": -2.94,
+   "envelope": {
+    "attack": 0.001,
+    "hold": 0.0,
+    "decay": 100.0,
+    "sustain": 1.0,
+    "release": 0.05
+   },
+   "zones": [
+    {
+     "key": [
+      36,
+      36
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 36,
+     "fineCents": -6,
+     "rate": 44100,
+     "frames": 12462,
+     "loop": null,
+     "gainDb": -12.94,
+     "sample": "Std Kick(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 3.5e-06
+    },
+    {
+     "key": [
+      38,
+      38
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 38,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 20640,
+     "loop": null,
+     "gainDb": -2.94,
+     "sample": "Std Snr 1(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.00172
+    },
+    {
+     "key": [
+      37,
+      37
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 37,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 64000,
+     "loop": null,
+     "gainDb": -12.94,
+     "sample": "Rim Tap(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.000239
+    },
+    {
+     "key": [
+      42,
+      42
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 42,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 31360,
+     "loop": null,
+     "gainDb": -23.94,
+     "sample": "Hi-Hat Closed(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.338
+    },
+    {
+     "key": [
+      46,
+      46
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 46,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 66150,
+     "loop": null,
+     "gainDb": -13.94,
+     "sample": "Hi-Hat Half-Open(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.078
+    },
+    {
+     "key": [
+      51,
+      51
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 51,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 66150,
+     "loop": null,
+     "gainDb": -22.44,
+     "sample": "Ride1(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.000406
+    },
+    {
+     "key": [
+      70,
+      70
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 70,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 4614,
+     "loop": null,
+     "gainDb": -2.94,
+     "sample": "Maracas(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.249
+    }
+   ]
+  },
+  {
+   "name": "brush",
+   "source": {
+    "bank": 128,
+    "program": 40,
+    "name": "Brush"
+   },
+   "bytes": 571520,
+   "zoneCount": 7,
+   "downsampledTo32k": false,
+   "normaliseShiftDb": -2.81,
+   "envelope": {
+    "attack": 0.001,
+    "hold": 0.0,
+    "decay": 100.0,
+    "sustain": 1.0,
+    "release": 0.05
+   },
+   "zones": [
+    {
+     "key": [
+      36,
+      36
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 36,
+     "fineCents": -6,
+     "rate": 44100,
+     "frames": 16768,
+     "loop": null,
+     "gainDb": -2.81,
+     "sample": "Std Kick 7(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 6.14e-07
+    },
+    {
+     "key": [
+      38,
+      38
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 38,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 14900,
+     "loop": null,
+     "gainDb": -12.81,
+     "sample": "Brush Snr 1(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.0129
+    },
+    {
+     "key": [
+      40,
+      40
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 40,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 26432,
+     "loop": null,
+     "gainDb": -12.81,
+     "sample": "Brush Swirl(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.013
+    },
+    {
+     "key": [
+      42,
+      42
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 42,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 31360,
+     "loop": null,
+     "gainDb": -23.81,
+     "sample": "Hi-Hat Closed(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.338
+    },
+    {
+     "key": [
+      46,
+      46
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 46,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 66150,
+     "loop": null,
+     "gainDb": -13.81,
+     "sample": "Hi-Hat Half-Open(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.078
+    },
+    {
+     "key": [
+      51,
+      51
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 51,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 66150,
+     "loop": null,
+     "gainDb": -14.31,
+     "sample": "Ride1(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.000406
+    },
+    {
+     "key": [
+      37,
+      37
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 37,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 64000,
+     "loop": null,
+     "gainDb": -12.81,
+     "sample": "Rim Tap(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.000239
+    }
+   ]
+  },
+  {
+   "name": "strings",
+   "source": {
+    "bank": 0,
+    "program": 48,
+    "name": "Strings"
+   },
+   "bytes": 1035760,
+   "zoneCount": 6,
+   "downsampledTo32k": false,
+   "normaliseShiftDb": -3.0,
+   "envelope": {
+    "attack": 0.001,
+    "hold": 0.059,
+    "decay": 3.0001,
+    "sustain": 0.7079,
+    "release": 1.8004
+   },
+   "zones": [
+    {
+     "key": [
+      48,
+      53
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 49,
+     "fineCents": 0,
+     "rate": 32000,
+     "frames": 101272,
+     "loop": [
+      54610,
+      101241
+     ],
+     "gainDb": -6.0,
+     "sample": "Strings C#4L",
+     "sourceRate": 32000,
+     "stereoAveraged": false,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 3.04e-07
+    },
+    {
+     "key": [
+      54,
+      61
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 58,
+     "fineCents": 0,
+     "rate": 32000,
+     "frames": 148799,
+     "loop": [
+      54814,
+      148735
+     ],
+     "gainDb": -6.0,
+     "sample": "Strings A#4L",
+     "sourceRate": 32000,
+     "stereoAveraged": false,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 1.03e-06
+    },
+    {
+     "key": [
+      62,
+      67
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 64,
+     "fineCents": 0,
+     "rate": 32000,
+     "frames": 115595,
+     "loop": [
+      44337,
+      115562
+     ],
+     "gainDb": -6.0,
+     "sample": "Strings E5L",
+     "sourceRate": 32000,
+     "stereoAveraged": false,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 9.3e-07
+    },
+    {
+     "key": [
+      68,
+      73
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 70,
+     "fineCents": 0,
+     "rate": 32000,
+     "frames": 60259,
+     "loop": [
+      29011,
+      60239
+     ],
+     "gainDb": -6.0,
+     "sample": "Strings A#5L",
+     "sourceRate": 32000,
+     "stereoAveraged": false,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 1.16e-05
+    },
+    {
+     "key": [
+      74,
+      79
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 76,
+     "fineCents": 0,
+     "rate": 32000,
+     "frames": 48414,
+     "loop": [
+      20892,
+      48406
+     ],
+     "gainDb": -6.0,
+     "sample": "Strings E6L",
+     "sourceRate": 32000,
+     "stereoAveraged": false,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 2.31e-05
+    },
+    {
+     "key": [
+      80,
+      84
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 83,
+     "fineCents": 0,
+     "rate": 32000,
+     "frames": 43541,
+     "loop": [
+      20239,
+      43523
+     ],
+     "gainDb": -3.0,
+     "sample": "Strings B6L",
+     "sourceRate": 32000,
+     "stereoAveraged": false,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 1.52e-05
+    }
+   ]
+  },
+  {
+   "name": "pad",
+   "source": {
+    "bank": 0,
+    "program": 89,
+    "name": "Warm Pad"
+   },
+   "bytes": 102480,
+   "zoneCount": 1,
+   "downsampledTo32k": false,
+   "normaliseShiftDb": 13.06,
+   "envelope": {
+    "attack": 0.5,
+    "hold": 0.4001,
+    "decay": 14.9977,
+    "sustain": 1.0,
+    "release": 2.0
+   },
+   "zones": [
+    {
+     "key": [
+      48,
+      84
+     ],
+     "vel": [
+      0,
+      127
+     ],
+     "root": 84,
+     "fineCents": 0,
+     "rate": 44100,
+     "frames": 51240,
+     "loop": [
+      36638,
+      51214
+     ],
+     "gainDb": 0.06,
+     "sample": "Alien Strings(L)",
+     "sourceRate": 44100,
+     "stereoAveraged": true,
+     "sourcePan": -500,
+     "hfEnergyAbove12k": 0.000208
+    }
+   ]
+  }
+ ]
+}
