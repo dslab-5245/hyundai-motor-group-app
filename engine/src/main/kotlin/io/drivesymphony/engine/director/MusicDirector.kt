@@ -4,6 +4,8 @@ import io.drivesymphony.engine.dsp.clamp
 import io.drivesymphony.engine.dsp.clamp01
 import io.drivesymphony.engine.dsp.logMap
 import io.drivesymphony.engine.theory.Genre
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.min
 
 /**
@@ -59,8 +61,13 @@ class MusicDirector(var genre: Genre) {
             Genre.AMBIENT -> eff * 2.2f
             else -> 0.35f + eff * 2.65f
         }
-        var cutoffT = logMap(eff, 900f, 14000f) * (1f - pulse * 0.6f)
-        if (g == Genre.AMBIENT) cutoffT = logMap(eff, 1200f, 12000f) * (1f - pulse * 0.5f)
+        var cutoffT = logMap(eff, 900f, 14000f)
+        if (g == Genre.AMBIENT) cutoffT = logMap(eff, 1200f, 12000f)
+        // Penalty "dive": the pulse pulls the cutoff geometrically toward DIVE_HZ, so even from a bright mix one
+        // non-graced event closes the filter to a few hundred Hz at once (the bass stays, everything above it goes
+        // under water) and it resurfaces with the pulse (~1 s) and the slow rise. A graced event (pulse 0.5) only
+        // reaches the geometric midpoint: a breath, not a stumble.
+        cutoffT = exp(ln(cutoffT) * (1f - pulse) + ln(DIVE_HZ) * pulse)
         val wobbleT = (1f - eff) * (if (g == Genre.LOFI) 0.6f else 0.4f) + pulse * 0.45f
         val crackleT = when (g) {
             Genre.LOFI -> 0.25f + (1f - eff) * 0.5f
@@ -77,10 +84,10 @@ class MusicDirector(var genre: Genre) {
             else -> 0.15f + eff * 0.25f
         }
         val widthT = 0.45f + eff * 0.55f
-        val gainT = -5f * (1f - eff) - pulse * 3f
+        val gainT = -5f * (1f - eff) - pulse * 4f
         val richnessT = eff
         val bloomT = clamp01((eff - 0.78f) / 0.2f) * (if (score.streakSec > 15f) 1f else 0.55f)
-        val panT = clamp(s.steeringAngleDeg / 180f, -1f, 1f) * 0.35f
+        val panT = clamp(s.steeringAngleDeg / 120f, -1f, 1f) * 0.8f   // keys and melody follow the wheel (bass and drums stay put)
         val rainT = if (s.wiper == WiperState.ON) 1f else 0f
         val driveT = when (s.driveMode) { DriveMode.ECO -> 0.3f; DriveMode.NORMAL -> 0.5f; DriveMode.SPORT -> 0.8f }
         val nightT = if (s.hourOfDay < 6 || s.hourOfDay >= 19) 1f else 0f
@@ -93,17 +100,17 @@ class MusicDirector(var genre: Genre) {
             return cur
         }
         cur = MusicParams(
-            density = ease(cur.density, densityT, dt, 0.3f, 2.5f),
-            cutoffHz = ease(cur.cutoffHz, cutoffT, dt, 0.12f, 1.8f),
-            wobble = ease(cur.wobble, wobbleT, dt, 0.15f, 1.5f),
+            density = ease(cur.density, densityT, dt, 0.2f, 2.5f),
+            cutoffHz = ease(cur.cutoffHz, cutoffT, dt, 0.06f, 1.8f),
+            wobble = ease(cur.wobble, wobbleT, dt, 0.1f, 1.5f),
             crackle = ease(cur.crackle, crackleT, dt, 0.4f, 1.5f),
             crush = ease(cur.crush, crushT, dt, 0.15f, 1.5f),
             reverbMix = ease(cur.reverbMix, reverbT, dt, 0.6f, 2.5f),
             width = ease(cur.width, widthT, dt, 0.3f, 2.0f),
             gainDb = ease(cur.gainDb, gainT, dt, 0.1f, 1.5f),
             richness = ease(cur.richness, richnessT, dt, 0.5f, 3.0f),
-            bloom = ease(cur.bloom, bloomT, dt, 0.4f, 2.0f),
-            pan = ease(cur.pan, panT, dt, 0.5f, 0.5f),
+            bloom = ease(cur.bloom, bloomT, dt, 0.12f, 2.0f),
+            pan = ease(cur.pan, panT, dt, 0.25f, 0.25f),
             rain = ease(cur.rain, rainT, dt, 1.0f, 1.0f),
             blinker = s.turnSignal != TurnSignal.OFF,
             drive = ease(cur.drive, driveT, dt, 2f, 2f),
@@ -113,5 +120,10 @@ class MusicDirector(var genre: Genre) {
             drone = ease(cur.drone, droneT, dt, 2.0f, 3.0f),
         )
         return cur
+    }
+
+    companion object {
+        /** Where the master lowpass lands on a full-strength penalty pulse. */
+        const val DIVE_HZ = 450f
     }
 }

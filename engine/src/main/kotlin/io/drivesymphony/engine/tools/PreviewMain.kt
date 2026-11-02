@@ -73,11 +73,13 @@ object PreviewMain {
         // flow timeline for the story scenario (for the README / PT)
         val engine = SymphonyEngine(SAMPLE_RATE, Genre.LOFI, 20261030, 19, "강변북로")
         val sb = StringBuilder("t(s)\tflow\tpulse\tdensity\tcutoffHz\tevent\n")
+        val ev = StringBuilder("t(s)\tevent\tgraced\n")
         val block = FloatArray(1920 * 2)
         val steps = (Scenarios.story.durationSec / 0.04f).toInt()
         for (i in 0 until steps) {
             val t = i * 0.04
             engine.update(Scenarios.story.signalsAt(t), 0.04f)
+            engine.state.let { st -> if (st.lastEventAgeSec < 1e-4f && st.lastEvent != null) ev.append(String.format("%.2f\t%s\t%s\n", t, st.lastEvent.name, st.graced)) }
             engine.render(block, 1920) // 40 ms of audio per 40 ms tick = real time
             if (i % 50 == 0) { // every 2 s
                 val st = engine.state
@@ -86,6 +88,7 @@ object PreviewMain {
             }
         }
         File(outDir, "story_flow_timeline.tsv").writeText(sb.toString())
+        File(outDir, "story_events.tsv").writeText(ev.toString())
         println("story: ${engine.state.sags} tape sags, events ${engine.summary().eventCounts}")
         println("Wrote story_flow_timeline.tsv")
     }

@@ -133,6 +133,7 @@ class SymphonyEngine(
     private var chordBeatsLeft = progression[0].beats
     private var arranger = Arranger(genre, rng)
     private val clock = Clock(sampleRate)
+    private var baseBpm = 80f   // the genre's tempo; the live tempo drags up to 10 % below it while the flow is low
 
     // instruments
     private val ep = EPiano(sr, seed + 1)
@@ -141,6 +142,7 @@ class SymphonyEngine(
     private val pad = Pad(sr, seed + 4)
     private val drums = Drums(sr, seed + 5)
     private val texture = Texture(sr, seed + 6)
+    private val sparkle = EPiano(sr, seed + 9, maxVoices = 7, bright = 1.8f).apply { tremoloDepth = 0.05f }   // reward arpeggios
 
     // master chain (stereo)
     private val lpL = Svf(sr); private val lpR = Svf(sr)
@@ -158,6 +160,14 @@ class SymphonyEngine(
     private var lastPulse = 0f
     private var bloomAnnounced = false
     private var sagCount = 0
+    // The stumble: a non-graced penalty mutes drums, hats and melody at once for at least STUMBLE_SEC; they may only
+    // come back on a downbeat. Layer entrances in general are quantised to a bar and announced by a riser (armEntrance).
+    private var grooveMuteUntilSample = 0L
+    private var drumsEnterBar = -1
+    private var hatsEnterBar = -1
+    private var announcedBar = -1
+    @Volatile private var sparkleRequest = 0   // 1 = signaled-turn reward (ascending), 2 = smooth-streak milestone (up and down)
+    private val keysMix = StereoOut()          // keys, melody and sparkle: the layers that pan with the wheel
     private val smoothCut = OnePole(sr).apply { setTimeConstant(0.03f); reset(8000f) }
     private val smoothGain = OnePole(sr).apply { setTimeConstant(0.03f); reset(1f) }
     private val smoothRev = OnePole(sr).apply { setTimeConstant(0.1f); reset(0.25f) }
@@ -228,7 +238,8 @@ class SymphonyEngine(
         }
         if (score.streakSec > bestStreak) bestStreak = score.streakSec
         // signaled turn: an immediate, audible reward -> one extra layer for the next two bars
-        if (ev == DriveEvent.SIGNALED_TURN && score.lastEventAgeSec < 1e-4f) rewardUntilBar = clock.bar + 2
+        if (ev == DriveEvent.SIGNALED_TURN && score.lastEventAgeSec < 1e-4f) { rewardUntilBar = clock.bar + 2; sparkleRequest = 1 }
+        if (ev == DriveEvent.SMOOTH_STREAK && score.lastEventAgeSec < 1e-4f) sparkleRequest = 2
         targetParams = director.update(score, signals, dtSec)
         wasMoving = score.moving
     }
@@ -266,12 +277,14 @@ class SymphonyEngine(
         chordIdx = 0
         chordBeatsLeft = progression[0].beats
         arranger = Arranger(g, rng)
-        clock.bpm = g.bpmMin + rng.nextFloat() * (g.bpmMax - g.bpmMin)
+        baseBpm = g.bpmMin + rng.nextFloat() * (g.bpmMax - g.bpmMin)
+        clock.bpm = baseBpm
         clock.swing = when (g) { Genre.LOFI -> 0.57f + rng.nextFloat() * 0.04f; Genre.JAZZ -> 0.64f; Genre.AMBIENT -> 0.5f }
         drums.brushed = g == Genre.JAZZ
         pad.cutoffBase = when (g) { Genre.AMBIENT -> 420f; Genre.LOFI -> 520f; Genre.JAZZ -> 700f }
-        ep.allOff(); lead.allOff(); pad.allOff()
+        ep.allOff(); lead.allOff(); pad.allOff(); sparkle.allOff()
         pendCount = 0
+        drumsEnterBar = -1; hatsEnterBar = -1; announcedBar = -1; grooveMuteUntilSample = 0L
         title = TripTitles.make(roadName, lastSignals.hourOfDay, keyRoot, g, rainy)
     }
 
@@ -313,6 +326,11 @@ class SymphonyEngine(
         ctx.intro = barsSinceGenre < 2
         ctx.fill = ctx.barInSection == SECTION_BARS - 1
         drone.setRoot(currentChord.rootPc)
+        // tempo follows the flow per bar (takes effect from the next bar): erratic driving drags, smooth driving sits at the genre's tempo
+        clock.bpm = baseBpm * (0.90f + 0.10f * clamp01(p.flow))
+        // quantised entrances: a layer armed during the previous bar comes in on this downbeat at full gain
+        if (drumsEnterBar in 0..bar) { gDrums = drumsTarget(p); drumsEnterBar = -1; if (genre == Genre.LOFI && gDrums > 0.3f) drums.hat(0.5f, true) }
+        if (hatsEnterBar in 0..bar) { gHats = hatsTarget(p); hatsEnterBar = -1 }
         val pr = if (bar < rewardUntilBar) p.copy(density = minOf(3f, p.density + 0.6f)) else p
         barEvents = arranger.bar(currentChord, nextChord, pr, ctx)
         // section-closing riser (lo-fi, full groove only): a noise swell over the fill bar into the next downbeat
@@ -320,6 +338,41 @@ class SymphonyEngine(
         // melody arrival: one soft swell in the bar the lead first opens (re-armed once the bloom has faded)
         if (p.bloom > 0.5f && !bloomAnnounced) { bloomAnnounced = true; if (genre != Genre.AMBIENT) texture.pulse() }
         if (p.bloom < 0.3f) bloomAnnounced = false
+    }
+
+    private fun densityOf(p: MusicParams) = if (clock.bar < rewardUntilBar) minOf(3f, p.density + 0.6f) else p.density
+    private fun drumsTarget(p: MusicParams) = clamp01((densityOf(p) - 0.7f) / 0.6f)
+    private fun hatsTarget(p: MusicParams) = clamp01((densityOf(p) - 1.6f) / 0.6f)
+
+    /**
+     * Decides the bar on which a waiting layer enters (the next downbeat, or the one after when that is less than
+     * 0.6 s away) and starts one riser that ends exactly there, so the entrance is announced instead of faded in.
+     */
+    private fun armEntrance(): Int {
+        val barSec = clock.stepSamples * 16f / sr
+        val toBar = (4f - clock.beatInBar) / 4f * barSec
+        val bars = if (toBar < 0.6f) 2 else 1
+        val enter = clock.bar + bars
+        if (announcedBar != enter) { announcedBar = enter; texture.riser(toBar + (bars - 1) * barSec) }
+        return enter
+    }
+
+    /** Reward arpeggio on the chord's safe tones, one 16th apart: 5 notes up (signaled turn) or 7 up-and-down (milestone). */
+    private fun playSparkle(kind: Int) {
+        val tones = currentChord.safeTones()
+        val base = 72 + currentChord.rootPc
+        val count = if (kind == 2) 7 else 5
+        val step = clock.stepSamples.toInt().coerceAtLeast(1)
+        val len = clock.samplesForSteps(3f)
+        var i = 0
+        while (i < count && pendCount < PENDING_MAX) {
+            val up = if (kind == 2 && i >= 4) 6 - i else i
+            val note = base + tones[up % tones.size] + 12 * (up / tones.size)
+            val j = pendCount++
+            pendKind[j] = HitKind.SPARKLE; pendNote[j] = note; pendVel[j] = 0.45f + 0.08f * i; pendLen[j] = len
+            pendWait[j] = i * step + 1
+            i++
+        }
     }
 
     private fun onStep(step: Int) {
@@ -379,6 +432,7 @@ class SymphonyEngine(
                 HitKind.LEAD -> if (p.bloom > 0.3f) lead.noteOn(note, vel * p.bloom, len)
                 HitKind.PAD_CHORD -> { /* pad chords are grouped in onStep */ }
                 HitKind.PULSE -> texture.pulse()
+                HitKind.SPARKLE -> sparkle.noteOn(note, vel, len)
             }
         }
     }
@@ -391,23 +445,38 @@ class SymphonyEngine(
         // snap back). Belt reminders (pulse 0.15) and graced manoeuvres (half pulse) never trigger it.
         if (p.pulse > lastPulse + 0.3f && p.pulse >= 0.45f && !score.graced) {
             val k = when (genre) { Genre.LOFI -> 1f; Genre.JAZZ -> 0.8f; Genre.AMBIENT -> 0.6f }
-            sag.trigger((0.08f + 0.2f * clamp01(p.pulse)) * k, 0.32f + 0.1f * p.pulse)
+            sag.trigger((0.22f + 0.25f * clamp01(p.pulse)) * k, 0.45f + 0.15f * p.pulse)
             sagCount++
+            // the stumble: groove and melody stop now and may only return on a downbeat (see the gains below)
+            grooveMuteUntilSample = clock.samplePos + (STUMBLE_SEC * sr).toLong()
+            drumsEnterBar = -1; hatsEnterBar = -1
         }
         lastPulse = p.pulse
+        val sq = sparkleRequest
+        if (sq != 0) { sparkleRequest = 0; playSparkle(sq) }
         sideAmt = if (genre == Genre.LOFI) 1f else 0f
         sat.drive = when (genre) { Genre.LOFI -> 1.5f; Genre.JAZZ -> 1.25f; Genre.AMBIENT -> 1.15f }
-        // layer gains follow density continuously (so a dip is heard mid-bar, not only at the next bar)
-        val d = if (clock.bar < rewardUntilBar) minOf(3f, p.density + 0.6f) else p.density
+        // Layer gains follow density continuously, with two musical rules: a drop is immediate (heard mid-bar), an
+        // entrance from silence waits for a downbeat and is announced by a riser; during a stumble the groove is held off.
+        val d = densityOf(p)
         densityEff = d
-        val tDrums = clamp01((d - 0.7f) / 0.6f)
-        val tHats = clamp01((d - 1.6f) / 0.6f)
-        val tLead = p.bloom
+        val muted = clock.samplePos < grooveMuteUntilSample
+        var tDrums = drumsTarget(p)
+        var tHats = hatsTarget(p)
+        var tLead = p.bloom
+        if (muted) { tDrums = 0f; tHats = 0f; tLead = 0f; drumsEnterBar = -1; hatsEnterBar = -1 }
+        else if (genre != Genre.AMBIENT) {
+            if (tDrums > 0.3f && gDrums < 0.08f) { if (drumsEnterBar < 0) drumsEnterBar = armEntrance(); tDrums = 0f }
+            if (tHats > 0.3f && gHats < 0.08f) { if (hatsEnterBar < 0) hatsEnterBar = armEntrance(); tHats = 0f }
+        }
         val tPad = when (genre) { Genre.AMBIENT -> 0.75f; Genre.JAZZ -> 0.35f; Genre.LOFI -> 0.5f }
         val tEp = when (genre) { Genre.AMBIENT -> 0.45f; else -> 0.8f }
         val tBass = when (genre) { Genre.AMBIENT -> 0.55f; else -> 0.85f }
         val k = 0.25f
-        gDrums += (tDrums - gDrums) * k; gHats += (tHats - gHats) * k; gLead += (tLead - gLead) * k
+        val kf = 0.5f   // falls are twice as fast as rises
+        gDrums += (tDrums - gDrums) * (if (tDrums < gDrums) kf else k)
+        gHats += (tHats - gHats) * (if (tHats < gHats) kf else k)
+        gLead += (tLead - gLead) * (if (tLead < gLead) kf else k)
         gPad += (tPad - gPad) * k; gEp += (tEp - gEp) * k; gBass += (tBass - gBass) * k
         gTex += ((0.25f + p.crackle * 0.5f) - gTex) * k
         gDrone += (p.drone * (when (genre) { Genre.JAZZ -> 0.5f; Genre.AMBIENT -> 1.1f; Genre.LOFI -> 0.85f }) - gDrone) * k
@@ -423,7 +492,8 @@ class SymphonyEngine(
         // light profile crossfade; when coming back to FULL the idle right reverb / doubler must not replay stale audio
         val lightTarget = if (profile == RenderProfile.LIGHT) 1f else 0f
         if (lightTarget == 0f && smoothLight.value > 0.999f) { revR.clear(); leadDly.clear() }
-        // musical pan from steering (gentle): equal-power gains computed once per block, smoothed per sample
+        // musical pan from steering: the keys, the melody and the sparkle move with the wheel (equal-power gains computed
+        // once per block, smoothed per sample); bass, drums and pad stay in place so the groove never leans
         val pp = (p.pan.coerceIn(-1f, 1f) * 0.5f + 1f) * 0.25f * 3.1415927f
         val panL = cos(pp); val panR = sin(pp)
         var blockPeak = 0f
@@ -433,24 +503,28 @@ class SymphonyEngine(
             val lt = smoothLight.process(lightTarget)
             mix.l = 0f; mix.r = 0f
             val du = duck.process() * sideAmt   // kick-driven pumping: pads and keys breathe with the groove
-            ep.render(mix, gEp * 0.55f * (1f - 0.3f * du))
+            keysMix.l = 0f; keysMix.r = 0f
+            ep.render(keysMix, gEp * 0.55f * (1f - 0.3f * du))
+            sparkle.render(keysMix, 0.5f)
             leadMix.l = 0f; leadMix.r = 0f
             lead.render(leadMix, gLead * 0.4f * (1f - 0.2f * du))
             if (lt < 0.999f) {
                 leadDly.write((leadMix.l + leadMix.r) * 0.5f)
                 val dbl = 0.3f * (1f - lt)
-                mix.l += leadMix.l + leadDly.readInt(430) * dbl
-                mix.r += leadMix.r + leadDly.readInt(290) * dbl
-            } else { mix.l += leadMix.l; mix.r += leadMix.r }
+                keysMix.l += leadMix.l + leadDly.readInt(430) * dbl
+                keysMix.r += leadMix.r + leadDly.readInt(290) * dbl
+            } else { keysMix.l += leadMix.l; keysMix.r += leadMix.r }
+            val gl = smoothPanL.process(panL); val gr = smoothPanR.process(panR)
+            mix.l += keysMix.l * (0.55f + 0.6f * gl)
+            mix.r += keysMix.r * (0.55f + 0.6f * gr)
             bass.render(mix, gBass * 0.7f * (1f - 0.15f * du))
             drone.render(mix, gDrone * 0.32f * (1f - 0.4f * du))
             pad.render(mix, gPad * 0.5f * (1f - 0.45f * du))
             drums.render(mix, drumsGain * (if (gDrums < 0.02f) 0f else 1f) * (0.4f + 0.6f * gDrums))
             texture.render(mix, p.crackle * gTex, p.rain, 0.8f)
 
-            val gl = smoothPanL.process(panL); val gr = smoothPanR.process(panR)
-            var l = mix.l * (0.75f + gl * 0.35f)
-            var r = mix.r * (0.75f + gr * 0.35f)
+            var l = mix.l
+            var r = mix.r
 
             // lo-fi stage
             l = lpL.process(l); r = lpR.process(r)
@@ -555,6 +629,8 @@ class SymphonyEngine(
         private const val PUBLISH_INTERVAL = 1024
         private const val SECTION_BARS = 8
         private const val PENDING_MAX = 48
+        /** Minimum time the groove stays out after a non-graced penalty (it then waits for a downbeat). */
+        private const val STUMBLE_SEC = 1.2f
     }
 }
 

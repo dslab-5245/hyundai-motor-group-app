@@ -31,5 +31,8 @@ tasks.register<JavaExec>("renderPreviews") {
     description = "Render preview WAVs for each genre and driving scenario."
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.drivesymphony.engine.tools.PreviewMain")
-    args(rootProject.layout.projectDirectory.dir("previews").asFile.absolutePath)
+    // -PpreviewDir=<dir> -PpreviewSeconds=<s> override the output folder and the per-scenario length (default 60 s)
+    val dir = (project.findProperty("previewDir") as String?) ?: rootProject.layout.projectDirectory.dir("previews").asFile.absolutePath
+    val secs = (project.findProperty("previewSeconds") as String?) ?: "60"
+    args(dir, secs)
 }

@@ -8,7 +8,7 @@ import io.drivesymphony.engine.theory.Voicing
 import kotlin.math.abs
 
 /** What the sequencer asks the engine to play at a given 16th-note step. */
-enum class HitKind { KICK, SNARE, HAT_C, HAT_O, RIDE, SHAKER, RIM, EP, BASS, LEAD, PAD_CHORD, PULSE }
+enum class HitKind { KICK, SNARE, HAT_C, HAT_O, RIDE, SHAKER, RIM, EP, BASS, LEAD, PAD_CHORD, PULSE, SPARKLE }
 
 /** [offsetSteps] delays the hit by a fraction of a 16th (0..0.5): lazy comping, pushed hats - the 'human' feel. */
 class StepEvent(val step: Int, val kind: HitKind, val note: Int = 0, val vel: Float = 0.8f, val lenSteps: Float = 1f, val offsetSteps: Float = 0f)
@@ -160,8 +160,10 @@ class Arranger(private val genre: Genre, private val rng: Rng) {
         }
         if (ctx.barInSection == 0 && d >= 1.8f) add(0, HitKind.HAT_O, vel = 0.45f)
         if (d >= 1.8f) {
-            for (k in 0 until 16 step 2) {
-                val v = if (k % 4 == 0) 0.6f else 0.42f
+            // sport mode doubles the hats to 16ths: the one place where "drive" is heard directly
+            val stride = if (p.drive > 0.7f) 1 else 2
+            for (k in 0 until 16 step stride) {
+                val v = if (k % 4 == 0) 0.6f else if (k % 2 == 0) 0.42f else 0.26f
                 add(k, HitKind.HAT_C, vel = v * hum, offset = pushHat(k))
             }
             if (d >= 2.5f) {
