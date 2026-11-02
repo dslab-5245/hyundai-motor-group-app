@@ -115,6 +115,7 @@ Drive Symphony turns driving into a live score. Steering, braking, turn signals,
 | AndroidX core-ktx, lifecycle-runtime-ktx, activity-compose, media, Compose(ui·foundation·material3, BOM) | Apache-2.0 |
 | Pleos Vehicle SDK 2.3.2, NaviHelper 3.0.5, navi-data 3.0.4 (`nexus-playground.pleos.ai`) | Pleos Playground 이용약관 |
 | 빌드·자료 생성 도구: Gradle, Pillow·numpy·scipy(스크립트만, 앱에 포함 안 됨) | Apache-2.0 / HPND·BSD |
+| 샘플 뱅크 `engine/src/main/resources/samples/fluid_lofi.dsb`: FluidR3_GM SoundFont(Frank Wen 외)에서 추출한 Rhodes·베이스·바이브라폰·스트링·패드·드럼 킷 샘플 4.8 MB | MIT (원문 `LICENSE-FluidR3.txt` 동봉) |
 | 내장 샘플 곡 `demo_track.ogg`: J.S. Bach, Goldberg Variations BWV 988 — Aria, Kimiko Ishizaka 연주 'Open Goldberg Variations'(2012), 72초 발췌 | CC0 1.0 퍼블릭 도메인 헌정 (archive.org/details/OpenGoldbergVariations) |
 
 리버브는 Freeverb 알고리즘(퍼블릭 도메인 튜닝값)을 직접 구현했다. 악기·시퀀서·채점 로직에 외부 코드나 샘플은 없다.

@@ -101,6 +101,9 @@ except Exception:
 for rel in tracked:
     if not rel.endswith((".kt", ".kts", ".md", ".xml", ".json", ".py", ".ps1", ".txt", ".properties", ".toml")):
         continue
+    # third-party licence notices (LICENSE-<name>.txt) must stay verbatim, author contact included: not the developer's identity
+    if os.path.basename(rel).startswith("LICENSE-"):
+        continue
     try:
         txt = io.open(os.path.join(ROOT, rel), encoding="utf-8").read()
     except Exception:
