@@ -14,22 +14,29 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -117,7 +124,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun Root(service: SymphonyService?, onPickTrack: () -> Unit, onShare: (TripSummary) -> Unit) {
     if (service == null) {
-        Box(Modifier.fillMaxSize().background(DsColors.bg)) { Text("Drive Symphony 준비 중…", color = DsColors.muted, fontSize = 26.sp, modifier = Modifier.padding(40.dp)) }
+        Box(Modifier.fillMaxSize().background(DsColors.bg), contentAlignment = Alignment.Center) { Text("Drive Symphony", color = DsColors.muted, fontSize = 26.sp, letterSpacing = 2.sp) }
         return
     }
     val engine by service.engineState.collectAsState()
@@ -132,9 +139,10 @@ private fun Root(service: SymphonyService?, onPickTrack: () -> Unit, onShare: (T
         return
     }
     Column(Modifier.fillMaxSize().background(DsColors.bg)) {
-        Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 24.dp)) {
-            TextButton(onClick = { tab = 0 }) { Text("연주", fontSize = 22.sp, color = if (tab == 0) DsColors.text else DsColors.muted) }
-            TextButton(onClick = { tab = 1 }) { Text("작곡실", fontSize = 22.sp, color = if (tab == 1) DsColors.text else DsColors.muted) }
+        // two text tabs with an accent underline; '작곡실' sits at the same place as before (the smoke script taps it)
+        Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 32.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+            TabLabel("연주", tab == 0) { tab = 0 }
+            TabLabel("작곡실", tab == 1) { tab = 1 }
         }
         Box(Modifier.weight(1f)) {
             if (tab == 0) FlowScreen(engine = engine, ui = ui, onToggle = service::toggle)
@@ -151,5 +159,16 @@ private fun Root(service: SymphonyService?, onPickTrack: () -> Unit, onShare: (T
                 onAutoStart = service::setAutoStart,
             )
         }
+    }
+}
+
+@Composable
+private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
+    Box(Modifier.fillMaxHeight().clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Text(text, fontSize = 22.sp, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal, color = if (selected) DsColors.text else DsColors.muted)
+        Box(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp).width(28.dp).height(3.dp)
+                .background(if (selected) DsColors.accent else Color.Transparent, RoundedCornerShape(2.dp))
+        )
     }
 }
