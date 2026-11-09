@@ -143,7 +143,7 @@ fun ComposerScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(text = "출발하면 자동 연주", fontSize = 22.sp, color = DsColors.text)
-                        Text(text = "기어 D로 움직이기 시작하면 연주를 시작합니다 (기본 꺼짐)", fontSize = 18.sp, color = DsColors.muted)
+                        Text(text = "기어 D로 움직이기 시작하면 연주를 시작합니다", fontSize = 18.sp, color = DsColors.muted, maxLines = 1)
                     }
                     Switch(checked = ui.autoStart, onCheckedChange = onAutoStart)
                 }
@@ -170,7 +170,7 @@ fun ComposerScreen(
             Card {
                 Text(text = "신호 상태", fontSize = 22.sp, color = DsColors.muted)
                 Spacer(Modifier.height(6.dp))
-                StatRow("Vehicle SDK", if (ui.demo) "데모 중 (시나리오가 신호를 대신함)" else if (ui.vehicleLive) "수신 중" else "대기")
+                StatRow("Vehicle SDK", if (ui.demo) "데모 중 · 시나리오 신호" else if (ui.vehicleLive) "수신 중" else "대기")
                 StatRow("NaviHelper", if (ui.demo) "데모 중" else if (ui.naviLive) "수신 중" else "내비 미실행")
                 StatRow("주행 제한(UX)", if (ui.restricted) "주행 중 화면" else "정차 화면")
                 StatRow("뒷좌석", if (ui.rearSeat) "탑승 → 강도 '약'" else "비어 있음")

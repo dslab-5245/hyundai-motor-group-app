@@ -3,6 +3,8 @@ package io.drivesymphony.app.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -181,9 +183,11 @@ private fun EventLine(engine: EngineState?) {
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun LayerDots(layers: List<String>, accent: Color) {
     val all = listOf("pad" to "패드", "bass" to "베이스", "keys" to "키", "drums" to "드럼", "hats" to "하이햇", "melody" to "멜로디", "vinyl" to "바이닐", "rain" to "비", "drone" to "드론")
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    // nine chips do not fit one line of the 2-pane glance screen (the last two were clipped): wrap into two rows
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for ((id, label) in all) {
             val on = layers.contains(id)
             Box(
