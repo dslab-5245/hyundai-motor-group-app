@@ -75,3 +75,18 @@ ffmpeg -i broll_02.mp4 -i story_clean.mp4 -filter_complex "[1:v]scale=1920:1080,
 1. `make-demo-video.ps1` 실행 → `build/video/<ts>/demo_video_16x9.mp4`를 보고 자막 타이밍·문구 확인(`*.srt` 수정 → `video_sync.py` 재실행).
 2. 유튜브 **미등록(unlisted)** 업로드 → 접수양식 ⟦시연 영상 링크⟧. 제목·설명에 이름·소속 금지.
 3. (선택) Veo/Kling로 B-roll 6컷 생성 → 합성 → 릴스/쇼츠 업로드(세로, 45초, 해시태그 3개) → ⟦숏폼 링크⟧. 없으면 `short_9x16.mp4` 업로드.
+
+## 5. 광고급 영상 파이프라인 (video/ad · scripts/make-ad.ps1)
+
+위 1~4절의 화면 녹화 + 자막 카드 방식 대신, 같은 런 폴더에서 **Remotion**으로 렌더하는 광고급 버전이 `video/ad/`에 있다
+(자세한 사용법은 `video/ad/README.md`, 푸티지·폰트·음성 출처는 `video/ad/CREDITS.md`).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\make-ad.ps1 -Run C:\Users\user\dev\drive-symphony\build\video\<timestamp>
+# 결과: build\ad\<timestamp>\ad_16x9.mp4 (약 78초), short_9x16.mp4 (약 49초, 해시태그 포함), demo_full_16x9.mp4 (약 3.9분, 내레이션)
+#       + narration.wav, events.json, plan.json, contact_sheet.png, event_frames_*.png, verify.json
+```
+
+- 이벤트 콜아웃은 `logcat.txt`의 `drive event` 줄을 `sync.json`의 REC 배지 시각으로 클린 영상 시간에 맞춘다(±1프레임).
+- 음악은 앱 자체 WAV, 내레이션(edge-tts 한국어)은 음악을 −6 dB 덕킹. 최종 −16 LUFS / −1.5 dBTP.
+- 주행 B-roll은 Mixkit 무료 라이선스 7컷(얼굴·번호판·로고 없음), 디스플레이 패널 뒤에 어둡게 깔리며 앱 영상으로 제시하지 않는다.
