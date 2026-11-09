@@ -4,7 +4,9 @@ import React, {useEffect, useState} from 'react';
 import {AbsoluteFill, continueRender, delayRender, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {ThreeCanvas} from '@remotion/three';
 import * as THREE from 'three';
-import {CAM, Cockpit, mixCam, type DriveState} from './Cockpit';
+import {CAM, mixCam} from './camera';
+import {DisplayImage, type DriveState} from './Cockpit';
+import {Scene} from './Scene';
 import {ensureFonts} from '../fonts';
 
 const FONT = "'Pretendard', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
@@ -29,7 +31,7 @@ export const CockpitSpike: React.FC = () => {
   const blinkOn = Math.floor(t * 2.6) % 2 === 0;
   const flow = t < 4.1 ? 0.96 : Math.min(0.96, 0.12 + (t - 4.4) * 0.11);
   const speed = 18 - stab * 6;
-  const state: DriveState = {steer, brake: stab, throttle: t < 4 ? 0.35 : 0.1, blinker, blinkOn, flow: Math.max(0.1, flow), speed, t};
+  const state: DriveState = {steer, brake: stab, throttle: t < 4 ? 0.35 : 0.1, blinker, blinkOn, flow: Math.max(0.1, flow), pulse: stab * 0.8, speed, dist: speed * t, t, wiper: 0, rain: 0};
   // camera: wide, dips to the pedal around the stab, back to wide
   const k = smooth(3.5, 4.0, t) * (1 - smooth(5.2, 6.4, t));
   const cam = mixCam(CAM.wide, CAM.pedal, k);
@@ -45,7 +47,7 @@ export const CockpitSpike: React.FC = () => {
         gl={{antialias: true, toneMapping: THREE.NoToneMapping, outputColorSpace: THREE.SRGBColorSpace, powerPreference: 'high-performance'}}
         camera={{fov: 50, near: 0.04, far: 500, position: [-0.14, 1.19, 0.5]}}
       >
-        <Cockpit state={state} cam={cam} panelSrc={panel} />
+        <Scene state={state} cam={cam} display={<DisplayImage src={panel} glow={state.flow} />} />
       </ThreeCanvas>
       {/* typography preview: kicker + title top-left, a status line bottom-left, nothing overlaps the display */}
       <div style={{position: 'absolute', left: 96, top: 84, fontFamily: FONT, color: '#C9D6F2'}}>

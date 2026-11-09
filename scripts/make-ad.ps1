@@ -1,8 +1,8 @@
 ﻿# Renders the ad-grade videos for one capture run (output of scripts/make-demo-video.ps1):
-#   ad_16x9.mp4 (cinematic 16:9, ~78 s), short_9x16.mp4 (vertical, ~49 s), demo_full_16x9.mp4 (narrated full demo, ~3.9 min)
+#   ad_16x9.mp4 (3D car film 16:9, ~86 s), short_9x16.mp4 (vertical, ~45 s), demo_full_16x9.mp4 (narrated full demo, ~5 min)
 #   + narration.wav, events.json, plan.json, contact_sheet.png, event_frames_*.png, render.log
 # Pipeline (video/ad, Remotion): stage run files -> extract events from logcat/timing/cue -> Korean voice-over (edge-tts)
-#   -> fetch b-roll + fonts (first time only) -> build the timelines -> render 3 compositions -> loudnorm -16 LUFS / -1.5 dBTP
+#   -> fonts (first time only) -> scenario signals + blinker tick -> build the timelines -> grid check -> render 3 compositions -> loudnorm -16 LUFS / -1.5 dBTP
 #   -> contact sheet + event frames. Re-runnable unattended on any run folder; every run-specific number is read from the run.
 #   powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\make-ad.ps1 -Run C:\Users\user\dev\drive-symphony\build\video\<ts> [-Out <dir>] [-Only Ad16x9,Short9x16] [-SkipNarration] [-Concurrency 6]
 param(
@@ -60,13 +60,22 @@ try {
         elseif ($LASTEXITCODE -ne 0) { throw 'narration failed' }
         if (Test-Path "$pub\run\narration.wav") { Copy-Item "$pub\run\narration.wav" (Join-Path $Out 'narration.wav') -Force }
     } elseif (-not (Test-Path "$pub\run\narration.json")) { '{"voice": null, "lines": []}' | Out-File -Encoding ascii "$pub\run\narration.json" }
-    # 4. b-roll (downloads once; rejects restricted clips)
-    Step 'b-roll'
-    Py @("$proj\tools\broll.py", $pub)
-    # 5. timelines
+    # 4. the engine's per-frame signals (drive the 3D car) + the blinker tick
+    if (-not (Test-Path "$pub\run\signals_story.json")) {
+        Step 'exporting scenario signals (gradle :engine:dumpSignals)'
+        $env:JAVA_HOME = 'C:\Users\user\dev-tools\jdk-extract\jdk-17.0.20.1+1'; $env:ANDROID_HOME = 'C:\Users\user\dev-tools\android-sdk'
+        & 'C:\Users\user\dev-tools\gradle-extract\gradle-8.10.2\bin\gradle.bat' -p $repo --offline -q :engine:dumpSignals | ForEach-Object { Add-Content -Encoding utf8 $log $_ }
+        if (-not (Test-Path "$pub\run\signals_story.json")) { throw 'signals export failed' }
+    }
+    Copy-Item "$pub\run\signals_story.json" (Join-Path $Out 'signals_story.json') -Force
+    Step 'blinker tick (sfx.py)'
+    Py @("$proj\tools\sfx.py", $pub)
+    # 5. timelines + grid check (every line of type must fit its zone)
     Step 'building timelines'
     Py @("$proj\tools\plan.py", $pub, "$pub\run\plan.json")
     Copy-Item "$pub\run\plan.json" (Join-Path $Out 'plan.json') -Force
+    Step 'checking the overlay grid'
+    Py @("$proj\tools\verify.py", '--check-plan', "$pub\run\plan.json")
     # 6. render + loudness
     if (-not $SkipRender) {
         foreach ($comp in $Only) {

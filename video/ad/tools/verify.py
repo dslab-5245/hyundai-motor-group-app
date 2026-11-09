@@ -1,6 +1,7 @@
-"""Checks a rendered output folder and writes verify.json + a short table.
+"""Checks a rendered output folder and writes verify.json + a short table; or checks a plan before rendering.
 
     python -I verify.py <out dir> [--plan plan.json]
+    python -I verify.py --check-plan <plan.json>      every line of type fits its grid zone; no 3D/insert overlaps
 
 Per mp4: streams (codec/profile/size/fps, audio codec/rate), duration, size, integrated loudness and true peak.
 Sync: for every warning call-out (harsh steer / brake) in the ad, the music's RMS right after the event versus right
@@ -33,7 +34,78 @@ def rms_db(x):
     return 20 * np.log10(np.sqrt(np.mean(x ** 2)) + 1e-9)
 
 
+# ---- plan check: every line of type fits its zone (the grid in src/layout.ts), so nothing can overlap -----------------
+ZONES = {  # (width, height): zone widths in px
+    (1920, 1080): {"message": 920, "title": 900, "insert": 564, "center": 1728, "label": 620, "insertLabel": 564, "fullLabel": 900,
+                   "callout": 560, "insertCallout": 564, "fullCallout": 560},
+    (1080, 1920): {"message": 936, "title": 936, "insert": 936, "center": 936, "label": 936, "insertLabel": 936, "fullLabel": 936,
+                   "callout": 936, "insertCallout": 936, "fullCallout": 936},
+}
+SIZES = {"title": 96, "xl": 64, "l": 44, "m": 30}
+
+
+def text_width(s, px):
+    """Pretendard: Hangul/CJK ~ 0.98 em, Latin/digits ~ 0.56 em, space 0.26 em (letter-spacing ignored)."""
+    w = 0.0
+    for ch in s:
+        o = ord(ch)
+        if ch == " ": w += 0.26
+        elif 0xAC00 <= o <= 0xD7A3 or 0x3000 <= o <= 0x9FFF or 0xFF00 <= o <= 0xFFEF: w += 0.98
+        else: w += 0.56
+    return w * px
+
+
+def mode_at(c, f):
+    for s in c["panel"]:
+        if s["start"] <= f < s["start"] + s["dur"]: return "full" if s["crop"] == "full" else "insert"
+    for s in c["scene3d"]:
+        if s["start"] <= f < s["start"] + s["dur"]: return "scene"
+    return "none"
+
+
+def check_plan(plan):
+    """Returns a list of problems (empty = ok): type wider than its zone, pills/labels wider than theirs, two 3D scenes
+    or two inserts overlapping in time, a 3D scene under an insert, a text block of more than two lines."""
+    problems = []
+    for name, c in plan["compositions"].items():
+        z = ZONES[(c["width"], c["height"])]
+        vert = c["height"] > c["width"]
+        for t in c["text"]:
+            px = SIZES[t["size"]] * (0.9 if vert else 1.0)
+            zone = t["pos"] if t["pos"] in z else "message"
+            if len(t["lines"]) > 2: problems.append(f"{name}: text at {t['start']/30:.1f}s has {len(t['lines'])} lines (max 2)")
+            for ln in t["lines"]:
+                w = text_width(ln, px)
+                if w > z[zone]: problems.append(f"{name}: '{ln}' {w:.0f}px > zone {zone} {z[zone]}px at {t['start']/30:.1f}s")
+        for co in c["callouts"]:
+            zone = {"scene": "callout", "insert": "insertCallout", "full": "fullCallout"}.get(mode_at(c, co["start"]))
+            if not zone: problems.append(f"{name}: call-out '{co['label']}' at {co['start']/30:.1f}s outside any zone"); continue
+            w = text_width(co["label"], 32 if vert else 28) + 110
+            if w > z[zone]: problems.append(f"{name}: pill '{co['label']}' {w:.0f}px > zone {zone} {z[zone]}px")
+        for lb in c["labels"]:
+            zone = {"scene": "label", "insert": "insertLabel", "full": "fullLabel"}.get(mode_at(c, lb["start"]))
+            if not zone: problems.append(f"{name}: label '{lb['label']}' at {lb['start']/30:.1f}s outside any zone"); continue
+            w = text_width(lb["label"], 26) + 24
+            if w > z[zone]: problems.append(f"{name}: label '{lb['label']}' {w:.0f}px > zone {zone} {z[zone]}px")
+        for key in ("scene3d", "panel"):
+            items = sorted(c[key], key=lambda x: x["start"])
+            for a, b in zip(items, items[1:]):
+                if b["start"] < a["start"] + a["dur"]: problems.append(f"{name}: two {key} items overlap at {b['start']/30:.1f}s")
+        for a in c["scene3d"]:
+            for b in c["panel"]:
+                if a["start"] < b["start"] + b["dur"] and b["start"] < a["start"] + a["dur"]:
+                    problems.append(f"{name}: a 3D scene and an insert overlap at {max(a['start'], b['start'])/30:.1f}s")
+    return problems
+
+
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")
+    if "--check-plan" in sys.argv:
+        plan = json.load(open(sys.argv[sys.argv.index("--check-plan") + 1], encoding="utf-8"))
+        problems = check_plan(plan)
+        for p in problems: print("  ! " + p)
+        print(f"plan check: {len(problems)} problem(s)")
+        sys.exit(1 if problems else 0)
     out = os.path.abspath(sys.argv[1])
     plan_path = sys.argv[sys.argv.index("--plan") + 1] if "--plan" in sys.argv else os.path.join(out, "plan.json")
     plan = json.load(open(plan_path, encoding="utf-8")) if os.path.exists(plan_path) else None

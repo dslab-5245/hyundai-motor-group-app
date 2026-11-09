@@ -8,17 +8,17 @@ export interface SourceInfo {
   duration: number;
   music_end: number;
   gain_db: number;
+  scenario_offset: number; // clip seconds − scenario seconds (signals sync)
   events: Array<{t: number; type: string; graced: boolean; flow: number | null; label: string; line: string; tone: Tone}>;
 }
 
-export interface BgItem {start: number; dur: number; clip: string; offset: number; zoom: number; dim: number; blur: number; fadeIn: number}
+export interface Scene3DKey {at: number; cam: string; cut?: boolean; hold?: boolean; orbit?: boolean}
+export interface Scene3DItem {start: number; dur: number; src: string | null; offset: number; keys: Scene3DKey[]; rain?: number | null}
 export interface FlowKey {at: number; flow: number}
 export interface Shot {
   start: number; dur: number; src: string; offset: number;
   crop: 'pane' | 'full';
-  style: 'reveal' | 'float' | 'dip' | 'macro' | 'settle' | 'full';
-  enter: 'cut' | 'fly' | 'flash' | 'rise';
-  exit: 'cut' | 'sink';
+  style: 'insert' | 'full' | 'macro';
   zoom: number;
   focus: [number, number] | null;
   flow: FlowKey[];
@@ -36,8 +36,8 @@ export interface VoiceItem {id: string; start: number; dur: number; text: string
 export interface CompPlan {
   width: number; height: number; duration: number;
   beats: Array<{id: string; start: number; dur: number}>;
-  background: BgItem[]; panel: Shot[]; text: TextItem[]; callouts: Callout[]; labels: LabelItem[]; cards: CardItem[];
-  music: MusicSeg[]; voice: VoiceItem[];
+  scene3d: Scene3DItem[]; panel: Shot[]; text: TextItem[]; callouts: Callout[]; labels: LabelItem[]; cards: CardItem[];
+  music: MusicSeg[]; voice: VoiceItem[]; ticks: number[];
 }
 
 export interface Plan {
@@ -45,9 +45,18 @@ export interface Plan {
   sources: Record<string, SourceInfo>;
   narration: Record<string, {file: string; duration: number; text: string}>;
   voice: string | null;
-  broll: Record<string, {file: string; duration: number; roles: string[]}>;
+  signals: string | null; // run/signals_story.json
+  tick: string | null; // gen/tick.wav
   hashtags: string;
   footer: string;
   noise?: string;
   compositions: Record<string, CompPlan>;
 }
+
+/** Which overlay grid is active at a frame: a 3D scene, an app insert, a full-frame recording, or nothing (cards). */
+export type Mode = 'scene' | 'insert' | 'full' | 'none';
+export const modeAt = (c: CompPlan, f: number): Mode => {
+  for (const s of c.panel) if (s.start <= f && f < s.start + s.dur) return s.crop === 'full' ? 'full' : 'insert';
+  for (const s of c.scene3d) if (s.start <= f && f < s.start + s.dur) return 'scene';
+  return 'none';
+};
