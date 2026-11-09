@@ -8,14 +8,20 @@
     "studio": "remotion studio"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "@react-three/postprocessing": "^3.2.2",
     "@remotion/cli": "4.0.300",
     "@remotion/fonts": "4.0.300",
     "@remotion/google-fonts": "4.0.300",
     "@remotion/media-utils": "4.0.300",
+    "@remotion/three": "^4.0.300",
     "@types/react": "19.1.8",
+    "@types/three": "^0.187.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "remotion": "4.0.300",
+    "three": "^0.187.0",
     "typescript": "5.8.3"
   }
 }

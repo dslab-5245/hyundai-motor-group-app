@@ -2,6 +2,7 @@ import React from 'react';
 import {Composition, staticFile} from 'remotion';
 import {Film, type FilmProps} from './Film';
 import type {Plan} from './plan';
+import {CockpitSpike} from './scene3d/CockpitSpike';
 
 let cached: Promise<Plan> | null = null;
 const loadPlan = (): Promise<Plan> => {
@@ -35,5 +36,6 @@ export const Root: React.FC = () => (
         }}
       />
     ))}
+    <Composition id="Cockpit3D" component={CockpitSpike} width={1920} height={1080} fps={30} durationInFrames={240} />
   </>
 );
