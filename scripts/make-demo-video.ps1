@@ -31,8 +31,11 @@ function Now { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
 function Pull-Recording([string]$name, [string]$dest) {
     $user = ((Adb shell am get-current-user) | Out-String).Trim()
     if (-not $user) { $user = '0' }
-    # no --where: its quoting does not survive PowerShell -> adb -> shell; the list is short, match the name here
-    $row = (Adb shell content query --user $user --uri content://media/external/downloads --projection _id:_display_name 2>$null | Where-Object { $_ -match "_display_name=$name\b" } | Select-Object -First 1 | Out-String)
+    # no --where: its quoting does not survive PowerShell -> adb -> shell; the list is short, match the name here.
+    # MediaStore keeps earlier rows of the same name (a stale 0-byte one made the pull empty once) and names the
+    # new file 'ds_remix.wav (1)': accept the numbered suffix and take the newest row (highest _id).
+    $base = [regex]::Escape([IO.Path]::GetFileNameWithoutExtension($name)); $ext = [regex]::Escape([IO.Path]::GetExtension($name))
+    $row = (Adb shell content query --user $user --uri content://media/external/downloads --projection _id:_display_name 2>$null | Where-Object { $_ -match "_display_name=$base( \(\d+\))?$ext\b" } | Sort-Object { if ($_ -match '_id=(\d+)') { [long]$Matches[1] } else { 0 } } | Select-Object -Last 1 | Out-String)
     if ($row -match '_id=(\d+)') {
         $id = $Matches[1]
         & cmd /c "`"$adb`" exec-out content read --user $user --uri content://media/external/downloads/$id > `"$dest`""
