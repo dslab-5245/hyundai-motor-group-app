@@ -1,5 +1,5 @@
 """Reads one capture run (scripts/make-demo-video.ps1 output) and writes events.json: every drive event, tape sag,
-cue step and story phase, in seconds of the synced clean videos (story_clean.mp4 / console_clean.mp4).
+cue step and story phase, in seconds of the synced clean videos (story_clean.mp4 / console_clean.mp4 / remix_clean.mp4).
 
     python -I events.py <run folder> <out events.json>
 
@@ -11,7 +11,7 @@ from timing.json. Nothing run-specific is hard-coded.
 import json, os, re, subprocess, sys
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lines import CALLOUTS, GRACED, STORY_PHASES, CUE_STEPS
+from lines import CALLOUTS, GRACED, STORY_PHASES, CUE_STEPS, REMIX_PHASES, REMIX_LINES
 
 FPS = 30
 PANE = (640, 101, 1892, 922)   # app pane inside the 1920x1080 Pleos display (x0, y0, x1, y1)
@@ -141,6 +141,16 @@ def main():
                 cues.append({"t0": round(t, 3), "t1": round(max(t + 2.5, nxt - 0.3), 3), "step": key, "label": label, "line": line})
         console["cues"] = cues
         result["segments"]["console"] = console
+    remix = segment("remix", run, log, timing, sync)   # the bundled sample track under the same demo story
+    if remix:
+        off = (timing.get("remix_demo", 0) - timing.get("remix_record", 0)) / 1000.0 if timing else 0.1
+        base = remix["badge_s"] + off
+        remix["scenario_t0"] = round(base, 3)
+        remix["phases"] = [{"t0": round(base + a, 3), "t1": round(base + b, 3), "label": l, "line": s}
+                           for a, b, l, s in REMIX_PHASES if base + a < remix["duration"] - 1.0]
+        for e in remix["events"]:
+            if not e["graced"] and e["type"] in REMIX_LINES: e["line"] = REMIX_LINES[e["type"]]
+        result["segments"]["remix"] = remix
     os.makedirs(os.path.dirname(out), exist_ok=True)
     json.dump(result, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     for name, seg in result["segments"].items():

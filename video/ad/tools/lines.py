@@ -53,4 +53,19 @@ CUE_STEPS = {  # Virtual Console cue step -> (label, line)   (scripts/virtual-co
     "11.": ("제동 · 주차 (P)", "마무리 코드 · 작곡실에 여정의 곡 카드"),
 }
 
+REMIX_PHASES = [  # remix segment: the bundled CC0 piano track under the same demo story (scripts/video_sync.py REMIX_CAPTIONS)
+    (0.5, 8.0, "내 음원 변주 · 샘플 곡", "Bach, Goldberg Aria (CC0) · 같은 주행 신호가 이번엔 '기존 곡'을 변주합니다"),
+    (9.0, 14.5, "깜빡이 회전", "곡이 열립니다 · 고역과 스테레오 폭"),
+    (15.0, 19.5, "부드러운 주행", "원곡 그대로 · 로우패스 열림"),
+    (20.0, 28.0, "급조작 · 곡이 물속으로", "테이프가 늘어지고 로우패스·워블이 걸립니다 · 끊기지 않습니다"),
+    (28.5, 44.0, "회복", "다시 부드럽게 달리면 곡이 원래 모습으로 돌아옵니다"),
+]
+REMIX_LINES = {  # call-out lines in remix mode: the track is processed, there are no layers to open
+    "HARSH_STEER": "곡이 잠시 물속으로 · 테이프 새그",
+    "BRAKE_STAB": "테이프가 늘어지고 로우패스가 닫힙니다",
+    "BRAKE_PUMP": "습관으로 판단 · 곡이 더 가라앉습니다",
+    "SIGNALED_TURN": "곡이 열립니다 · 고역과 폭",
+    "SMOOTH_STREAK": "원곡 그대로 돌아옵니다",
+}
+
 HASHTAGS = "#HMG차량용앱개발공모전  #PleosAppMarket  #HMG앱공모전"

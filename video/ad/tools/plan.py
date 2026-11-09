@@ -1,6 +1,7 @@
 """The director: turns one run's events.json + narration.json + the b-roll list into plan.json, the layered timelines
 (background, panel shots, kinetic text, call-outs, labels, cards, music, voice) that src/Film.tsx renders for the three
-compositions Ad16x9, Short9x16 and DemoFull16x9.
+compositions Ad16x9, Short9x16 and DemoFull16x9. A run with a remix recording (remix_clean.mp4: the bundled CC0 track
+under the same demo story) gets it as beat 9 of the ad and as chapter 3 of the full demo.
 
     python -I plan.py <public dir> <out plan.json>
 
@@ -143,6 +144,13 @@ def anchors(story):
     return dict(turn=turn, harsh0=harsh0, harsh1=harsh1, streak=streak, grace=grace, layers=layers_t0, bloom=bloom_t0, stop=stop_t0, park=park_t0)
 
 
+def remix_anchor(rx):
+    """First non-graced harsh event in the remix recording (seconds in remix_clean); fallback: the scenario's brake-pump phase."""
+    ph = {p["label"]: p for p in rx.get("phases", [])}
+    return next((e["t"] for e in rx["events"] if e["tone"] == "warn" and not e["graced"] and e["t"] > 5.0),
+                ph.get("급조작 · 곡이 물속으로", {}).get("t0", 21.0))
+
+
 def ad(sources, narr, broll):
     story = sources["story"]; A = anchors(story); n = lambda k: narr[k]["duration"] if k in narr else 3.5
     tl = Timeline("Ad16x9", 1920, 1080, sources, narr, broll)
@@ -211,18 +219,32 @@ def ad(sources, narr, broll):
     tl.words(["감점은 절반,", "숨도 짧게."], at=3.9, dur=grace - 4.1, size="l", pos="left")
     tl.say("n6", at=0.3)
     tl.advance(grace)
-    # 9 remix: typographic beat over rain glass, music continues
-    remix = 6.0
-    tl.beat("remix", remix)
-    tl.background("rain", remix, dim=0.8, zoom=1.1, blur=1)
-    tl.music_seg("story", A["grace"] - 1.6 + grace, remix, tl.t)
-    tl.words(["내 음원도,", "주행에 맞춰 변주됩니다."], at=0.3, dur=remix - 0.4, size="xl", pos="center")
-    tl.say("n7", at=0.4)
-    tl.advance(remix)
+    # 9 remix: the bundled sample track (CC0 piano) bent by the same driving — the real recording when the run has one
+    #   (call-outs on its own events), otherwise a typographic beat over rain glass with the story music continuing
+    rx = sources.get("remix")
+    if rx:
+        remix = 9.0
+        r_in = max(0.0, min(remix_anchor(rx) - 2.2, rx["duration"] - remix))
+        tl.beat("remix", remix)
+        tl.background("rain", remix, dim=0.75, zoom=1.1, blur=2)
+        tl.shot("remix", r_in, remix, style="dip", enter="flash")
+        tl.words(["내 음원도,", "주행에 맞춰 변주됩니다."], at=0.3, dur=4.2, size="l", pos="left")
+        tl.words(["같은 규칙으로,", "곡이 잠시 물속에 잠깁니다."], at=4.7, dur=remix - 4.9, size="l", pos="left")
+        tl.say("n7", at=0.4)
+        tl.advance(remix)
+        t_arr = A["stop"] - 1.0
+    else:
+        remix = 6.0
+        tl.beat("remix", remix)
+        tl.background("rain", remix, dim=0.8, zoom=1.1, blur=1)
+        tl.music_seg("story", A["grace"] - 1.6 + grace, remix, tl.t)
+        tl.words(["내 음원도,", "주행에 맞춰 변주됩니다."], at=0.3, dur=remix - 0.4, size="xl", pos="center")
+        tl.say("n7", at=0.4)
+        tl.advance(remix)
+        t_arr = A["grace"] - 1.6 + grace + remix
+        if abs(t_arr - A["stop"]) > 6.0: t_arr = A["stop"] - 1.0
     # 10 arrival
     arr = 8.0
-    t_arr = A["grace"] - 1.6 + grace + remix
-    if abs(t_arr - A["stop"]) > 6.0: t_arr = A["stop"] - 1.0
     tl.beat("arrival", arr)
     tl.background("arrival", arr, offset=2.0, dim=0.7, blur=2)
     tl.shot("story", t_arr, arr, style="settle", enter="rise", exit="sink")
@@ -342,6 +364,23 @@ def demo(sources, narr, broll):
         for c in cues:
             tl.label(c["label"], c["line"], c["t0"], max(2.0, c["t1"] - c["t0"]))
         tl.advance(cd)
+    remix = sources.get("remix")
+    if remix:
+        tl.beat("chapter3", 3.0)
+        tl.card("chapter", 3.0, kicker="시연 3", title="내 음원 변주", line="내장 샘플 곡 Bach, Goldberg Aria (CC0) · 같은 주행 규칙으로 로우패스 · 테이프 새그 · 음량 · 스테레오 폭")
+        tl.advance(3.0)
+        rd = remix["duration"]
+        tl.beat("remix", rd)
+        rph = {p["label"]: p for p in remix.get("phases", [])}
+        rcuts = [(0.0, "city"), (rph.get("급조작 · 곡이 물속으로", {}).get("t0", 21.0), "rain"), (rph.get("회복", {}).get("t0", 29.5), "window")]
+        for k, (t0, role) in enumerate(rcuts):
+            t1 = rcuts[k + 1][0] if k + 1 < len(rcuts) else rd
+            if t1 > t0: tl.background(role, t1 - t0, start=tl.t + t0, dim=0.55, blur=5, zoom=1.04)
+        tl.shot("remix", 0.0, rd, crop="full", style="full", enter="rise", exit="sink")
+        for p in remix.get("phases", []):
+            tl.label(p["label"], p["line"], p["t0"], max(2.0, min(p["t1"], rd) - p["t0"]))
+        tl.say("n7", at=1.0)
+        tl.advance(rd)
     outro = 12.0
     tl.beat("outro", outro)
     tl.music_seg("story", max(0.0, story["duration"] - outro), outro, tl.t, fade_in=F(1.0), fade_out=F(3.0))
@@ -349,7 +388,8 @@ def demo(sources, narr, broll):
             features=["조향 · 브레이크 · 기어 · 깜빡이 · 와이퍼 · 크루즈 · 내비 → 실시간 작곡",
                       "안전하지 않은 조작은 음악이 잠시 가라앉을 뿐, 침묵도 꾸중도 없습니다",
                       "Gleo 음성 명령 4종 · 주행 중 글랜스 화면 · 오디오 CPU 5% 미만 · 네트워크 없음"], hashtags=False)
-    tl.say("n7", at=0.6); tl.say("n9", at=5.6)
+    if not remix: tl.say("n7", at=0.6)
+    tl.say("n9", at=5.6)
     tl.advance(outro)
     return tl.out()
 

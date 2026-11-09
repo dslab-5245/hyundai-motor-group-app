@@ -11,13 +11,14 @@ export const useMusicFeatures = (music: MusicSeg[], plan: Plan): Features => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const names = Object.keys(plan.sources).filter((k) => plan.sources[k].audio);
-  // hooks must be called unconditionally: one per source (two in practice: story, console)
+  // hooks must be called unconditionally: one per source (three in practice: story, console, remix)
   const d0 = useAudioData(names[0] ? staticFile(plan.sources[names[0]].audio as string) : staticFile('run/plan.json'));
   const d1 = useAudioData(names[1] ? staticFile(plan.sources[names[1]].audio as string) : staticFile('run/plan.json'));
+  const d2 = useAudioData(names[2] ? staticFile(plan.sources[names[2]].audio as string) : staticFile('run/plan.json'));
   const seg = music.find((m) => frame >= m.start && frame < m.start + m.dur);
   if (!seg) return EMPTY;
   const idx = names.indexOf(seg.src);
-  const data = idx === 0 ? d0 : idx === 1 ? d1 : null;
+  const data = idx === 0 ? d0 : idx === 1 ? d1 : idx === 2 ? d2 : null;
   if (!data) return EMPTY;
   const srcFrame = Math.round(seg.offset * fps) + (frame - seg.start);
   const raw = visualizeAudio({fps, frame: srcFrame, audioData: data, numberOfSamples: 256, optimizeFor: 'speed'});
