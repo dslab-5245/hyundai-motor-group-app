@@ -47,3 +47,14 @@ tasks.register<JavaExec>("samplerDemo") {
     mainClass.set("io.drivesymphony.engine.tools.SamplerDemoMain")
     args(layout.buildDirectory.dir("sampler-demo").get().asFile.absolutePath)
 }
+
+// Dumps a scenario's per-frame driving signals + the engine's flow/pulse/events as JSON for the film's 3D cockpit.
+// Usage: gradlew :engine:dumpSignals -PsignalsOut=<file.json> [-PsignalsScenario=story] [-PsignalsFps=30]
+tasks.register<JavaExec>("dumpSignals") {
+    group = "drive-symphony"
+    description = "Dump per-frame driving signals and flow for a scenario as JSON (video/ad 3D scene)."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.drivesymphony.engine.tools.SignalsMain")
+    val out = (project.findProperty("signalsOut") as String?) ?: rootProject.layout.projectDirectory.file("video/ad/public/run/signals_story.json").asFile.absolutePath
+    args(out, (project.findProperty("signalsScenario") as String?) ?: "story", (project.findProperty("signalsFps") as String?) ?: "30")
+}
