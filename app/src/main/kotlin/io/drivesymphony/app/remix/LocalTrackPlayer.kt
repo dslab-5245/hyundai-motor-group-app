@@ -18,14 +18,14 @@ import java.nio.ByteOrder
  * position and only reads the other's. Samples are stored before the owning position is published (volatile
  * write), so the reader never sees a frame that is not fully written and the audio thread never blocks or waits.
  */
-class LocalTrackPlayer(private val context: Context, private val uri: Uri, private val outRate: Int = 48000) {
+class LocalTrackPlayer(private val context: Context, private val uri: Uri, private val outRate: Int = 48000, private val fixedTitle: String? = null) {
     private val ringFrames = outRate * 6 // 6 s
     private val ring = FloatArray(ringFrames * 2)
     @Volatile private var writePos = 0L   // written by the decoder thread only
     @Volatile private var readPos = 0L    // written by the audio thread only
     @Volatile private var running = false
     private var thread: Thread? = null
-    @Volatile var title: String = uri.lastPathSegment ?: "track"
+    @Volatile var title: String = fixedTitle ?: uri.lastPathSegment ?: "track"
     @Volatile var error: String? = null
 
     fun start() {
@@ -103,7 +103,7 @@ class LocalTrackPlayer(private val context: Context, private val uri: Uri, priva
                 if (trackIndex < 0 || format == null) { error = "no audio track"; running = false; return }
                 runCatching {
                     val r = android.media.MediaMetadataRetriever()
-                    try { r.setDataSource(context, uri); r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)?.let { title = it } }
+                    try { r.setDataSource(context, uri); r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)?.let { if (fixedTitle == null) title = it } }
                     finally { r.release() }   // not AutoCloseable on API 28, so no use {}
                 }
                 extractor.selectTrack(trackIndex)

@@ -214,9 +214,9 @@ export const DisplayPanel: React.FC<{tex: THREE.Texture; glow: number}> = ({tex,
       </mesh>
       <mesh position={[0, 0, 0.001]}>
         <planeGeometry args={[w, h]} />
-        <meshPhysicalMaterial color="#000000" transparent opacity={0.08} roughness={0.05} clearcoat={1} clearcoatRoughness={0.03} />
+        <meshPhysicalMaterial color="#000000" transparent opacity={0.05} roughness={0.14} clearcoat={0.5} clearcoatRoughness={0.14} />
       </mesh>
-      <pointLight position={[0, 0, 0.14]} intensity={0.35 + glow * 0.35} distance={0.8} decay={2} color="#E6ECF8" />
+      <pointLight position={[0, -0.38, 0.22]} intensity={0.4 + glow * 0.35} distance={0.9} decay={2} color="#E6ECF8" />
     </group>
   );
 };
@@ -299,8 +299,8 @@ export const CabinShell: React.FC<{flow: number}> = ({flow}) => {
       </mesh>
       {/* door panels */}
       {([-0.93, 0.93] as const).map((x) => (
-        <mesh key={x} position={[x, 0.5, 0.3]}>
-          <boxGeometry args={[0.08, 1.0, 2.3]} />
+        <mesh key={x} position={[x, 0.5, 0.27]}>
+          <boxGeometry args={[0.08, 1.0, 2.5]} />
           <meshPhysicalMaterial color="#0B0E15" roughness={0.65} clearcoat={0.2} />
         </mesh>
       ))}
@@ -310,10 +310,17 @@ export const CabinShell: React.FC<{flow: number}> = ({flow}) => {
         <meshStandardMaterial color="#0A0C12" roughness={0.95} />
       </mesh>
       <RoundedBox args={[0.36, 0.3, 1.1]} radius={0.04} smoothness={3} position={[0.02, 0.15, 0.15]}>
-        <meshPhysicalMaterial color="#0C1018" roughness={0.6} clearcoat={0.3} />
+        <meshStandardMaterial color="#0A0D14" roughness={0.88} />
       </RoundedBox>
       <Seat x={DX} />
       <Seat x={0.4} />
+      {/* rear bench and bulkhead: close the cabin cut-out toward the tail */}
+      <RoundedBox args={[1.78, 0.22, 0.5]} radius={0.05} smoothness={4} position={[0, 0.4, 1.25]}>
+        <meshPhysicalMaterial color={LEATHER} roughness={0.7} clearcoat={0.2} />
+      </RoundedBox>
+      <RoundedBox args={[1.78, 0.74, 0.22]} radius={0.05} smoothness={4} position={[0, 0.67, 1.42]}>
+        <meshPhysicalMaterial color={LEATHER} roughness={0.7} clearcoat={0.2} />
+      </RoundedBox>
     </group>
   );
 };

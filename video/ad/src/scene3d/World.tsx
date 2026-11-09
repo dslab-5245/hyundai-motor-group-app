@@ -29,7 +29,9 @@ const noiseTexture = () => {
       const u = x / n, v = y / n;
       let val = 0.55 * sample(grids[0], 8, u, v) + 0.3 * sample(grids[1], 16, u, v) + 0.15 * sample(grids[2], 32, u, v);
       // puddles: low values become mirror-like, the rest stays damp asphalt
-      val = val < 0.42 ? 0.08 : 0.35 + (val - 0.42) * 1.1;
+      const k = Math.min(1, Math.max(0, (val - 0.39) / 0.07));
+      const edge = k * k * (3 - 2 * k); // feathered puddle edge
+      val = 0.08 * (1 - edge) + edge * (0.35 + Math.max(0, val - 0.42) * 1.1);
       const b = Math.round(Math.min(1, Math.max(0, val)) * 255);
       const i = (y * n + x) * 4;
       img.data[i] = b;

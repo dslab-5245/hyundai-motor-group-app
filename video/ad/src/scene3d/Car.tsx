@@ -32,6 +32,18 @@ const profileGeometry = (build: (s: THREE.Shape) => void, width: number, bevelT:
 const ARCH = 0.415;
 const archStart = Math.asin((0.06 - 0.08) / ARCH);
 
+/** The cabin, cut out of the solid body shell (world space; clipIntersection clips only inside all six planes). Without
+ * it every camera above the beltline sees the top of the extrusion as a slab with the dash buried in it. The interior's
+ * door panels, floor and rear bulkhead close the cut. */
+const CABIN_CLIP = [
+  new THREE.Plane(new THREE.Vector3(1, 0, 0), -0.97),
+  new THREE.Plane(new THREE.Vector3(-1, 0, 0), -0.97),
+  new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.3),
+  new THREE.Plane(new THREE.Vector3(0, -1, 0), 0.03),
+  new THREE.Plane(new THREE.Vector3(0, 0, 1), -1.5),
+  new THREE.Plane(new THREE.Vector3(0, 0, -1), -0.97),
+];
+
 const BodyShell: React.FC = () => {
   const geo = useMemo(
     () =>
@@ -54,7 +66,7 @@ const BodyShell: React.FC = () => {
   );
   return (
     <mesh geometry={geo} castShadow receiveShadow>
-      <meshPhysicalMaterial color={BODY} metalness={0.7} roughness={0.36} clearcoat={1} clearcoatRoughness={0.1} envMapIntensity={1.1} />
+      <meshPhysicalMaterial color={BODY} metalness={0.7} roughness={0.36} clearcoat={1} clearcoatRoughness={0.1} envMapIntensity={1.1} clippingPlanes={CABIN_CLIP} clipIntersection />
     </mesh>
   );
 };

@@ -442,12 +442,12 @@ class SymphonyService : MediaBrowserServiceCompat() {
         val f = java.io.File(filesDir, DEMO_TRACK)
         runCatching {
             if (!f.exists() || f.length() < 1000) assets.open(DEMO_TRACK).use { ins -> f.outputStream().use { ins.copyTo(it) } }
-            setRemixTrack(Uri.fromFile(f))
+            setRemixTrack(Uri.fromFile(f), DEMO_TITLE)
             Log.i(TAG, "remix demo track: ${f.length() / 1024} KB")
         }.onFailure { Log.w(TAG, "remix demo track failed", it); _ui.update { s -> s.copy(remixError = it.message) } }
     }
 
-    fun setRemixTrack(uri: Uri?) {
+    fun setRemixTrack(uri: Uri?, fixedTitle: String? = null) {
         trackPlayer?.stop(); trackPlayer = null
         if (uri == null) {
             mode = PlayMode.GENERATIVE
@@ -455,7 +455,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
             _ui.update { it.copy(mode = mode, remixTrackTitle = null, remixError = null) }
         } else {
             runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            val p = LocalTrackPlayer(this, uri, SAMPLE_RATE)
+            val p = LocalTrackPlayer(this, uri, SAMPLE_RATE, fixedTitle)
             p.start()
             trackPlayer = p
             mode = PlayMode.REMIX
@@ -724,6 +724,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
         const val ACTION_REMIX_DEMO = "io.drivesymphony.action.REMIX_DEMO"
         /** bundled public-domain piano excerpt for remix mode (assets/demo_track_LICENSE.txt) */
         const val DEMO_TRACK = "demo_track.ogg"
+        /** shown in the one-line title (the file's own tag names the Open Goldberg edition; see the LICENSE file) */
+        const val DEMO_TITLE = "Bach · Goldberg Aria"
         // Gleo function names == intent actions (assets/schema.json)
         const val GLEO_START = "startSymphony"
         const val GLEO_SET_GENRE = "setGenre"

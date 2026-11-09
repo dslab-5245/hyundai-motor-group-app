@@ -16,7 +16,7 @@ export const CAM: Record<string, CamState> = {
   wheel: {pos: [DX + 0.12, 1.02, 0.22], look: [DX, 0.8, -0.45], fov: 38},
   pedal: {pos: [DX + 0.14, 0.8, 0.22], look: [DX - 0.03, 0.22, -0.62], fov: 40},
   stalk: {pos: [DX - 0.05, 1.0, 0.12], look: [DX - 0.2, 0.84, -0.6], fov: 34},
-  display: {pos: [DX + 0.25, 1.02, 0.1], look: [0.18, 0.84, -0.62], fov: 32},
+  display: {pos: [DX + 0.25, 1.02, 0.1], look: [0.19, 0.9, -0.61], fov: 32},
   road: {pos: [DX + 0.1, 1.15, 0.1], look: [DX + 0.1, 1.0, -8.0], fov: 56},
   passenger: {pos: [0.55, 1.12, 0.35], look: [DX - 0.1, 0.86, -0.6], fov: 44},
   // exterior (third person)
@@ -101,5 +101,5 @@ export const camInside = (pos: V3) => Math.abs(pos[0]) < 1.0 && pos[1] > 0.3 && 
 /** 0 outside .. 1 deep inside: fades the glass as the camera flies through it. */
 export const insideness = (pos: V3) => {
   const d = Math.hypot(pos[0] * 1.6, (pos[1] - 1.05) * 2.2, (pos[2] - 0.15) * 0.9);
-  return Math.min(1, Math.max(0, (1.9 - d) / 0.9));
+  return Math.min(1, Math.max(0, (2.6 - d) / 1.2)); // ~0 at the driver's window, 1 well inside
 };

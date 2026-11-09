@@ -15,7 +15,11 @@ const One: React.FC<{item: LabelItem; comp: CompPlan}> = ({item, comp}) => {
   const outP = interpolate(f, [item.dur - 8, item.dur], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const style = zoneStyle(zone);
   return (
-    <div style={{...style, opacity: inP * outP, transform: `translateY(${((1 - inP) * 8).toFixed(1)}px)`, fontFamily: FONT, gap: 6}}>
+    <div style={{...style, opacity: inP * outP, transform: `translateY(${((1 - inP) * 8).toFixed(1)}px)`, fontFamily: FONT, gap: 6, isolation: 'isolate'}}>
+      {mode === 'scene' && (
+        <div style={{position: 'absolute', zIndex: -1, left: -160, right: -140, top: -80, bottom: -90, opacity: 0.8, filter: 'blur(24px)',
+          background: `radial-gradient(ellipse at ${zone.align === 'right' ? '75%' : '25%'} 50%, rgba(6,10,18,0.9) 0%, rgba(6,10,18,0.6) 40%, rgba(6,10,18,0) 72%)`}} />
+      )}
       <div style={{display: 'flex', alignItems: 'center', gap: 12, flexDirection: zone.align === 'right' ? 'row-reverse' : 'row'}}>
         <div style={{width: 8, height: 8, borderRadius: 4, background: C.accent, boxShadow: `0 0 12px ${C.accent}`}} />
         <span style={{fontSize: 26, fontWeight: 500, color: C.text, letterSpacing: -0.4}}>{item.label}</span>

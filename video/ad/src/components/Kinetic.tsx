@@ -51,8 +51,14 @@ const Block: React.FC<{item: TextItem}> = ({item}) => {
   else if (pos === 'center') zone = {x: L.margin, y: vertical ? 760 : 430, w: width - 2 * L.margin, align: 'center'};
   else zone = L.message;
   const style = zoneStyle(zone);
+  const scrim = pos !== 'insert' && pos !== 'center';
+  const o = Math.min(1, f / 10) * (1 - exitP);
   return (
-    <div style={{...style, gap: Math.round(size * 0.22), fontFamily: FONT}}>
+    <div style={{...style, gap: Math.round(size * 0.22), fontFamily: FONT, isolation: 'isolate'}}>
+      {scrim && (
+        <div style={{position: 'absolute', zIndex: -1, left: -140, right: -200, top: -90, bottom: -110, opacity: 0.85 * o, filter: 'blur(26px)',
+          background: `radial-gradient(ellipse at ${zone.align === 'right' ? '75%' : '25%'} 55%, rgba(6,10,18,0.9) 0%, rgba(6,10,18,0.62) 40%, rgba(6,10,18,0) 72%)`}} />
+      )}
       {kicker && (
         <div style={{fontSize: 18, letterSpacing: 6, fontWeight: 500, color: C.muted, marginBottom: 14, opacity: Math.min(1, f / 8) * (1 - exitP)}}>{kicker}</div>
       )}

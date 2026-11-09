@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -97,7 +98,7 @@ private fun FlowRingBlock(flow: Float, pulse: Float, accent: Color, breath: Floa
 private fun FlowLines(engine: EngineState?, ui: ServiceUiState, accent: Color, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.Center) {
         val remix = ui.mode == PlayMode.REMIX
-        Text(text = if (remix) (ui.remixTrackTitle ?: "내 음원 변주") else (engine?.title ?: "준비 중"), fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = DsColors.text, maxLines = 1, lineHeight = 40.sp)
+        Text(text = if (remix) (ui.remixTrackTitle ?: "내 음원 변주") else (engine?.title ?: "준비 중"), fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = DsColors.text, maxLines = 1, overflow = TextOverflow.Ellipsis, lineHeight = 40.sp)
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Chip(text = if (remix) "변주" else ui.genre.label, color = accent)

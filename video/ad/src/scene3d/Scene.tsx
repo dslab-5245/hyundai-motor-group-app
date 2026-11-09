@@ -15,8 +15,9 @@ import {Interior, type DriveState} from './Cockpit';
 import {World} from './World';
 
 const Camera: React.FC<{cam: CamState; shake: number; t: number}> = ({cam, shake, t}) => {
-  const {camera, invalidate} = useThree();
+  const {camera, gl, invalidate} = useThree();
   useLayoutEffect(() => {
+    gl.localClippingEnabled = true; // the body shell's cabin cut-out
     const c = camera as THREE.PerspectiveCamera;
     // a little hand-held life on the penalty pulse: two incommensurate sines, a few millimetres
     const sx = shake * 0.006 * Math.sin(t * 31.0), sy = shake * 0.004 * Math.sin(t * 23.7 + 1.0);
@@ -27,7 +28,7 @@ const Camera: React.FC<{cam: CamState; shake: number; t: number}> = ({cam, shake
     c.far = 600;
     c.updateProjectionMatrix();
     invalidate();
-  }, [camera, invalidate, cam.pos[0], cam.pos[1], cam.pos[2], cam.look[0], cam.look[1], cam.look[2], cam.fov, shake, t]);
+  }, [camera, gl, invalidate, cam.pos[0], cam.pos[1], cam.pos[2], cam.look[0], cam.look[1], cam.look[2], cam.fov, shake, t]);
   return null;
 };
 
@@ -49,6 +50,7 @@ export const Scene: React.FC<{state: DriveState; cam: CamState; display: React.R
   }
   const inside = insideness(cam.pos);
   const glass = 0.86 * (1 - inside);
+  const studio = 1 - 0.85 * inside; // the area panels are for the exterior; inside they would flat-light the dash
   const abr = useMemo(() => new THREE.Vector2(0.0004 + state.pulse * 0.0016, 0.0004 + state.pulse * 0.0016), [state.pulse]);
   return (
     <>
@@ -59,7 +61,7 @@ export const Scene: React.FC<{state: DriveState; cam: CamState; display: React.R
       <ambientLight intensity={0.08} color="#9FB4E0" />
       <directionalLight
         position={[3.0, 6.0, -5.0]}
-        intensity={1.1}
+        intensity={1.1 * (1 - 0.55 * inside)}
         color="#A9C6FF"
         castShadow
         shadow-mapSize={[2048, 2048]}
@@ -71,11 +73,11 @@ export const Scene: React.FC<{state: DriveState; cam: CamState; display: React.R
         shadow-camera-bottom={-8}
         shadow-bias={-0.0006}
       />
-      <directionalLight position={[-4.0, 3.0, 6.0]} intensity={0.5} color="#5F76A8" />
-      <directionalLight position={[6.0, 2.0, 3.0]} intensity={0.35} color="#8FB3FF" />
-      <AreaLight pos={[0, 5.5, -0.8]} at={[0, 0, -0.8]} w={7} h={1.4} intensity={9} />
-      <AreaLight pos={[-6.5, 1.7, 0.2]} at={[0, 0.6, 0.2]} w={6} h={0.7} intensity={6} />
-      <AreaLight pos={[6.5, 1.7, 0.2]} at={[0, 0.6, 0.2]} w={6} h={0.7} intensity={6} />
+      <directionalLight position={[-4.0, 3.0, 6.0]} intensity={0.5 * (1 - 0.5 * inside)} color="#5F76A8" />
+      <directionalLight position={[6.0, 2.0, 3.0]} intensity={0.35 * (1 - 0.5 * inside)} color="#8FB3FF" />
+      <AreaLight pos={[0, 5.5, -0.8]} at={[0, 0, -0.8]} w={7} h={1.4} intensity={9 * studio} />
+      <AreaLight pos={[-6.5, 1.7, 0.2]} at={[0, 0.6, 0.2]} w={6} h={0.7} intensity={6 * studio} />
+      <AreaLight pos={[6.5, 1.7, 0.2]} at={[0, 0.6, 0.2]} w={6} h={0.7} intensity={6 * studio} />
       <Car state={state} glassOpacity={glass} />
       <Interior state={state} display={display} />
       <World dist={state.dist} t={state.t} rain={state.rain} />
