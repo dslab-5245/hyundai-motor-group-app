@@ -7,9 +7,9 @@
 ## 1. 파이프라인 (자동)
 
 ```powershell
-# 에뮬레이터 부팅 → release APK 설치 → 데모 스토리 106초 화면 녹화 + 앱 내부 WAV 탭 → Virtual Console 큐시트 85초 → 동기화·자막·컷
+# 에뮬레이터 부팅 → release APK 설치 → 데모 스토리 106초 화면 녹화 + 앱 내부 WAV 탭 → Virtual Console 큐시트 85초 → 내 음원 변주 46초(내장 CC0 샘플 곡) → 동기화·자막·컷
 powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\make-demo-video.ps1
-# 결과: build\video\<timestamp>\demo_video_16x9.mp4, short_9x16.mp4, story_clean.mp4, console_clean.mp4, *.srt, README.txt
+# 결과: build\video\<timestamp>\demo_video_16x9.mp4, short_9x16.mp4, story_clean.mp4, console_clean.mp4, remix_clean.mp4, *.srt, README.txt
 ```
 
 - 소리: 에뮬레이터 스피커를 녹음하지 않는다(끊김·지연). 앱의 `RECORD` 액션이 렌더 블록을 그대로 WAV로 쓰고(`AudioTap`), 글랜스 화면의 **● REC 배지가 클래퍼보드**다 — `video_sync.py`가 배지가 처음 보이는 프레임을 찾아 WAV 샘플 0에 맞춘다(오차 ≤ 1프레임).
@@ -83,10 +83,11 @@ ffmpeg -i broll_02.mp4 -i story_clean.mp4 -filter_complex "[1:v]scale=1920:1080,
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\make-ad.ps1 -Run C:\Users\user\dev\drive-symphony\build\video\<timestamp>
-# 결과: build\ad\<timestamp>\ad_16x9.mp4 (약 78초), short_9x16.mp4 (약 49초, 해시태그 포함), demo_full_16x9.mp4 (약 3.9분, 내레이션)
+# 결과: build\ad\<timestamp>\ad_16x9.mp4 (약 81초; 55초부터 변주 녹화 비트), short_9x16.mp4 (약 49초, 해시태그 포함), demo_full_16x9.mp4 (약 4.7분, 내레이션; 시연 1 시나리오 · 시연 2 실신호 · 시연 3 내 음원 변주)
 #       + narration.wav, events.json, plan.json, contact_sheet.png, event_frames_*.png, verify.json
 ```
 
 - 이벤트 콜아웃은 `logcat.txt`의 `drive event` 줄을 `sync.json`의 REC 배지 시각으로 클린 영상 시간에 맞춘다(±1프레임).
 - 음악은 앱 자체 WAV, 내레이션(edge-tts 한국어)은 음악을 −6 dB 덕킹. 최종 −16 LUFS / −1.5 dBTP.
 - 주행 B-roll은 Mixkit 무료 라이선스 7컷(얼굴·번호판·로고 없음), 디스플레이 패널 뒤에 어둡게 깔리며 앱 영상으로 제시하지 않는다.
+- 런 폴더에 `remix_clean.mp4`(변주 구간)가 있으면 광고의 9번째 비트와 풀 데모의 3장에 그 녹화·소리(골드베르크 아리아가 급조작에서 가라앉는 구간)가 들어가고, 없으면 비 유리 위 타이포 비트로 대체된다(`tools/lines.py`의 `REMIX_PHASES`·`REMIX_LINES`).
