@@ -1,28 +1,25 @@
-# Credits — footage, fonts, voice
+# Credits — 3D scene, environment map, fonts, voice, sound
 
 Everything below is licence-safe for a public contest video without attribution; it is listed here anyway.
 
-## Driving POV b-roll (Mixkit)
+## 3D scene (own work, no stock footage)
 
-All seven clips are published under the **Mixkit Stock Video Free License** (https://mixkit.co/license/#videoFree):
-free for commercial and personal projects, no attribution required, the clips may be edited and composited; they may
-not be redistributed as stock on their own. Each clip's page states the licence; a Restricted-License clip cannot be
-downloaded at 1080p by `tools/broll.py`, which rejects the stub Mixkit returns for it (16519, 47615, 47664, 17304,
-26253 were rejected that way and are not used). The clips are used dimmed and blurred behind the car display and as
-cutaways; they are never presented as footage of the app in a car. None shows a face, a readable plate or a logo.
+The car, the cabin, the road, the lamps, the rain: all procedural three.js geometry written in `src/scene3d/`
+(`Car.tsx`, `Cockpit.tsx`, `World.tsx`, `Scene.tsx`, `camera.ts`). No third-party models and no stock video. The car
+is a nameless study — no badge, no plate, no brand design — and it is driven by the engine's own per-frame signals of
+the demo scenario (`public/run/signals_story.json`, exported by `gradle :engine:dumpSignals`), so the steering wheel,
+pedals, indicator, wipers, brake lights and the Flow glow are frame-exact with the music. The centre display shows the
+real emulator recording as a video texture (`src/components/Scene3D.tsx`). The end card says so: contest entry,
+emulator screen recording, 3D simulation, not on the market.
 
-| id | title | page | use |
-|---|---|---|---|
-| 42039 | View from inside a car in night traffic | https://mixkit.co/free-stock-video/view-from-inside-a-car-in-night-traffic-42039/ | hook, reveal, stumble, intro |
-| 42032 | Driving down an avenue at night | https://mixkit.co/free-stock-video/driving-down-an-avenue-at-night-42032/ | city cutaways |
-| 42034 | Driving along a city at night | https://mixkit.co/free-stock-video/driving-along-a-city-at-night-42034/ | city cutaways |
-| 42037 | View out of a car window at night | https://mixkit.co/free-stock-video/view-out-of-a-car-window-at-night-42037/ | recovery, grace, bloom |
-| 42038 | Driving through a night city | https://mixkit.co/free-stock-video/driving-through-a-night-city-42038/ | highway |
-| 2846 | Window on a Rainy Day | https://mixkit.co/free-stock-video/window-on-a-rainy-day-2846/ | rain / remix beat |
-| 41575 | Traveling on a nature road at dusk | https://mixkit.co/free-stock-video/traveling-on-a-nature-road-at-dusk-41575/ | arrival |
+## Environment map (Poly Haven, CC0)
 
-Source URL pattern: `https://assets.mixkit.co/videos/<id>/<id>-1080.mp4`. Total 324 MB; downloaded into `public/broll/`
-(git-ignored).
+| file | source | licence |
+|---|---|---|
+| `public/hdri/moonless_golf_1k.hdr` | https://polyhaven.com/a/moonless_golf | CC0 1.0 (https://polyhaven.com/license) — no attribution required |
+
+Used as the image-based light for the night road and the paint reflections (`<Environment>` in `src/scene3d/Scene.tsx`);
+the long studio highlights are rect area lights of the scene itself.
 
 ## Fonts
 
@@ -34,7 +31,10 @@ Source URL pattern: `https://assets.mixkit.co/videos/<id>/<id>-1080.mp4`. Total 
 - Korean narration synthesised with **edge-tts** (Microsoft Edge neural voice `ko-KR-HyunsuMultilingualNeural`; fallback
   InJoon / SunHi). No person is recorded; the script is `tools/lines.py` (blind review: no names, no affiliations).
 
-## Music
+## Music and sound
 
-- The app's own engine output, recorded inside the app during the capture run (`ds_story.wav`, `ds_console.wav`). No
-  third-party music.
+- The app's own engine output, recorded inside the app during the capture run (`ds_story.wav`, `ds_console.wav`,
+  `ds_remix.wav`). The remix segment plays the bundled public-domain piano sample (Open Goldberg Variations, CC0; see
+  `app/src/main/assets/demo_track_LICENSE.txt`) through the app's own variation path. No third-party music.
+- The indicator tick is synthesised by `tools/sfx.py` into `public/gen/tick.wav` (two short filtered clicks at the
+  blinker's 1.5 Hz phase changes). No sound library.

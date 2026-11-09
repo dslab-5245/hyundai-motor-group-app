@@ -1,15 +1,15 @@
-# 시연 영상 · 숏폼 스토리보드 — Drive Symphony
+# 시연 영상 · 숏폼 스토리보드 — Drive Symphony (v3, 2026-11-09)
 
 공모전 산출물 기준(2026-10-31 사이트 확인): 시연 영상은 **선택·가산점**(목업·프로토타입·화면 녹화 인정, 길이·형식 규정 없음), 숏폼 링크는 선택(가산점 없음, 별도 "숏폼 챌린지 어워드": 세로 30초~1분, 릴스/쇼츠, 해시태그 2~3개에 **`#HMG차량용앱개발공모전` 필수**, 권장 `#PleosAppMarket #HMG앱공모전`, Spot→Solve→Scene 구조). 블라인드 심사: 영상·링크·자막에 성명·소속·연락처·얼굴 없음.
 
-결론: **① 심사용 시연 영상(16:9, 3~4분)은 화면 녹화 + 합성 음원으로 자동 제작**한다(아래 파이프라인). **② 광고형 릴스(9:16, 45초)는 AI 주행 B-roll + UI 합성**으로 만들고, AI 도구가 없으면 파이프라인이 만드는 `short_9x16.mp4`(UI + 자막 + 해시태그)를 그대로 쓴다. 실제 차에서 직접 시연하는 영상은 **필수가 아니다** — 공모전이 화면 녹화·프로토타입을 인정하고, 에뮬레이터 Virtual Console 구간이 "실제 차량 신호 경로"를 보여 준다.
+결론: 제출하는 영상 3편은 **광고급 파이프라인(5절, `video/ad/`)** 이 만든다 — 엔진이 내보낸 시나리오 신호로 움직이는 **3D 차량·야간 도로·운전석 시뮬레이션** 위에 앱의 실제 화면 녹화와 음원, 합성 음성 내레이션, 이벤트 콜아웃을 얹는다. 스톡 푸티지·AI 생성 영상은 쓰지 않는다. 1절의 화면 녹화판(`demo_video_16x9.mp4`, `short_9x16.mp4`)은 같은 캡처에서 자동으로 함께 나오는 **대체본**이다. 실제 차에서 직접 시연하는 영상은 **필수가 아니다** — 공모전이 화면 녹화·프로토타입을 인정하고, 에뮬레이터 Virtual Console 구간이 "실제 차량 신호 경로"를 보여 준다.
 
-## 1. 파이프라인 (자동)
+## 1. 캡처 파이프라인 (자동)
 
 ```powershell
-# 에뮬레이터 부팅 → release APK 설치 → 데모 스토리 106초 화면 녹화 + 앱 내부 WAV 탭 → Virtual Console 큐시트 85초 → 내 음원 변주 46초(내장 CC0 샘플 곡) → 동기화·자막·컷
+# 에뮬레이터 부팅(이미 떠 있으면 재사용) → release APK 설치 → 데모 스토리 114초 화면 녹화 + 앱 내부 WAV 탭 → Virtual Console 큐시트 92초 → 내 음원 변주 46초(내장 CC0 샘플 곡) → 동기화·자막·컷
 powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\make-demo-video.ps1
-# 결과: build\video\<timestamp>\demo_video_16x9.mp4, short_9x16.mp4, story_clean.mp4, console_clean.mp4, remix_clean.mp4, *.srt, README.txt
+# 결과: build\video\<timestamp>\demo_video_16x9.mp4, short_9x16.mp4, story_clean.mp4, console_clean.mp4, remix_clean.mp4, *.srt, sync.json, README.txt
 ```
 
 - 소리: 에뮬레이터 스피커를 녹음하지 않는다(끊김·지연). 앱의 `RECORD` 액션이 렌더 블록을 그대로 WAV로 쓰고(`AudioTap`), 글랜스 화면의 **● REC 배지가 클래퍼보드**다 — `video_sync.py`가 배지가 처음 보이는 프레임을 찾아 WAV 샘플 0에 맞춘다(오차 ≤ 1프레임).
@@ -17,53 +17,55 @@ powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\script
 - 라우드니스: EBU R128 측정 후 정적 게인으로 −16 LUFS / −1.5 dBTP(다이내믹스 보존, 가라앉는 구간이 그대로 들린다).
 - 타이틀 카드: Pillow + Noto Sans KR. 사람 이름·소속 없음.
 
-## 2. 심사용 시연 영상 구성 (16:9, 약 3분 40초)
+## 2. 화면 녹화판 시연 영상 구성 (16:9, 약 4분 36초 — 대체본)
 
-| 구간 | 길이 | 내용 | 자막·내레이션 포인트 |
+| 구간 | 길이 | 내용 | 자막 포인트 |
 |---|---|---|---|
 | 인트로 카드 | 5 s | 앱 이름, 한 줄 소개 | "주행이 연주가 되는 차 · 부드럽게 달릴수록 음악이 풍성해집니다" |
 | 시연 1 카드 | 4 s | 데모 시나리오 설명 | 시내 → 습관적 급조작 → 회복 → 고속도로 → 회피 → 비 → 도착 |
-| 시연 1 | 113 s | 글랜스 화면 녹화 + 합성 음원 | 6 s 깜빡이 보상 / 20–28 s **브레이크 반복 → 테이프 새그·필터 닫힘** / 44 s 크루즈 드론 / 78 s 블룸 / 86 s 회피는 숨만 고름 / 90 s 비 / 103 s 여정 카드 |
+| 시연 1 | 114 s | 글랜스 화면 녹화 + 앱 음원 | 6 s 깜빡이 보상 / 20–28 s **브레이크 반복 → 테이프 새그·드럼 정지·로우패스 잠수** / 44 s 크루즈 드론 / 78 s 블룸 / 86 s 회피는 숨만 고름 / 90 s 비 / 103 s 여정 카드 |
 | 시연 2 카드 | 4 s | Virtual Console → SDK | "데모 꺼짐 · 실제 차량 신호 경로" |
-| 시연 2 | ~90 s | 콘솔 큐시트 11단계 | 패닝 → 깜빡이 보상 → 20 s 안정 → 회피 1회 → 브레이크 3연타 → 회복 → 와이퍼·크루즈 → 뒷좌석 → P |
+| 시연 2 | 92 s | 콘솔 큐시트 11단계 | 패닝 → 깜빡이 보상 → 20 s 안정 → 회피 1회 → 브레이크 3연타 → 회복 → 와이퍼·크루즈 → 뒷좌석 → P |
+| 시연 3 카드 + 시연 3 | 4 + 46 s | 내 음원 변주(샘플 곡) | 골드베르크 아리아가 같은 주행 규칙으로 급조작에서 가라앉고 돌아온다 |
 | 아웃트로 카드 | 7 s | 기능 요약 3줄 | 신호 7종 실시간 작곡 / 가라앉을 뿐 침묵·꾸중 없음 / Gleo 4종 · 글랜스 · CPU 5% 미만 · 네트워크 없음 |
 
-내레이션(선택): 자막만으로 충분하도록 썼다. 목소리를 넣는다면 TTS보다 자막 유지가 블라인드 규정에 안전하다.
+## 3. 광고급 3편 — 톤앤매너와 콘티 (v3)
 
-## 3. 광고형 릴스 (9:16, 45초) — AI B-roll + UI 합성
+**톤앤매너.** 미니멀·일렉트로닉·메탈릭 & 딥 네이비. 화면은 비어 있고 타이포는 가볍다(Pretendard 400/500, 아이스 블루 #8FB3FF 한 가지 강조색, 딥 네이비 #060A12). 배경에 차가 질주하는 스톡 푸티지는 쓰지 않는다. 대신 **3D 차량 시뮬레이션**: 이름 없는 차(배지·번호판·브랜드 디자인 없음)가 젖은 야간 고속도로를 달리고, 카메라가 **차 외부와 운전석을 3인칭으로 부드럽게 오간다**(옆면 트래킹 → 노즈 오빗 → 운전석 창을 통과해 실내로). 운전 동작이 바뀌는 순간에는 카메라가 그 동작으로 **줌인**한다 — 급제동엔 페달 컷과 브레이크등 플레어·노즈 딥, 급조향엔 로우 프런트, 깜빡이엔 레버와 측면 램프, 보상·블룸엔 디스플레이 클로즈업 — 그리고 **음악이 어떻게 바뀌었는지**가 디스플레이(실제 녹화)의 Flow 링·레이어 칩과 소리로 함께 보인다. 차의 조향·페달·깜빡이·와이퍼·브레이크등·실내 조명은 손으로 만든 애니메이션이 아니라 **엔진이 같은 시나리오를 재생해 내보낸 프레임별 신호**(`gradle :engine:dumpSignals`)로 움직인다. 2D 오버레이는 고정·분리된 그리드(타이틀 좌상, 단계 라벨 우상, 메시지 좌하 2줄 이내, 콜아웃 우하, 인서트는 좌측 평면 앱 화면 + 우측 칼럼)에만 놓이고, `verify.py`가 글꼴로 실측해 겹침·넘침이 있으면 렌더를 멈춘다.
 
-구조(공모전 권장 Spot → Solve → Scene):
+### 3-1. `ad_16x9.mp4` (16:9, 86초)
 
-| 시간 | 샷 | 화면 | 자막 |
+| 초 | 비트 | 카메라 (3D) | 카피·콜아웃 |
 |---|---|---|---|
-| 0–6 s Spot | AI: 저녁 강변도로, 운전자 손과 핸들(얼굴 없음), 실내 조명 | 풀샷, 대시보드 중앙 디스플레이는 어둡게 | "운전 중 음악은 늘 같은 곡을 틀어 줄 뿐이었다" |
-| 6–12 s | AI: 급제동 순간, 브레이크등 반사 | 디스플레이에 UI 합성: Flow 링이 주황으로, 캡션 "브레이크 반복" | "급제동을 하면 — 음악이 잠시 가라앉는다" (소리: 테이프 새그) |
-| 12–24 s Solve | AI: 부드러운 주행, 가로등 흐름 | UI 합성: 링이 녹색으로 차오르고 레이어 점이 하나씩 켜짐 | "부드럽게 달릴수록 베이스·키·드럼이 차례로 쌓인다" |
-| 24–32 s | AI: 깜빡이 점멸, 완만한 우회전 | UI: "깜빡이 켜고 회전" 캡션 | "깜빡이를 켜고 돌면 즉시 보상" |
-| 32–40 s | AI: 고속도로, 와이퍼 | UI: 비 레이어 점 + 드론 | "와이퍼는 빗소리 텍스처, 크루즈는 드론 베드" |
-| 40–45 s Scene | AI: 주차 후 실내, 디스플레이에 '여정의 곡' 카드 | 카드 풀샷 → 로고 | "오늘 당신이 연주한 곡 · Drive Symphony" + 해시태그 |
+| 0–6.5 | hook | 차 옆면 트래킹 → 앞 쿼터 오빗 → 운전석 창 → 실내(한 번의 연속 이동) | "운전하는 동안," / "차는 당신의 리듬을 듣고 있습니다." |
+| 6.5–13.5 | reveal | 실내 와이드: 대시보드·핸들·디스플레이(실제 녹화) | 타이틀 드라이브 심포니 · "주행 신호가 그대로 음악이 되는" |
+| 13.5–20 | reward | 앞 쿼터 → 측면(깜빡이 점멸·틱) → 컷: 레버 → 컷: 디스플레이 클로즈업 | "깜빡이를 켜고 도는 회전에는, 바로 보상이 옵니다." · 콜아웃 깜빡이 회전·보상 |
+| 20–25.5 | layers | 인서트: 앱 화면 평면 + 우측 칼럼 | 레이어가 쌓입니다 |
+| 25.5–35.5 | stumble | 측면 근접 → 로우 프런트(급조향) → 컷: 페달 → 컷: 로우 리어(브레이크등 플레어·노즈 딥) → 뒤로 빠지며 탑 샷 | "급제동과 급조향에는 음악이 잠시 가라앉습니다." "벌이 아니라, 숨 고르기입니다." · 콜아웃 급조향·급제동·브레이크 반복 |
+| 35.5–41.5 | recovery | 탑 샷 → 운전석 창으로 내려와 실내 와이드 | "다시 부드럽게 달리면, 레이어가 하나씩 돌아옵니다." · 라벨 회복 |
+| 41.5–47 | bloom | 팔로우 → 컷: 디스플레이 클로즈업(Flow 100) → 컷: 로우 팔로우 | "안정 주행이 이어지면, 멜로디가 피어납니다." · 라벨 블룸 |
+| 47–55.6 | grace | 앞 쿼터(회피 조향) → 오빗 → 리어(브레이크등) | "위험을 피한 급조작은 알아봅니다." · 콜아웃 위험 회피로 판단·감점 절반 |
+| 55.6–60.1 | rain | 실내 와이드 → 로드(비·와이퍼) | "비가 오면, 비 텍스처와 셰이커가 더해집니다." |
+| 60.1–67.6 | remix | 인서트: 변주 녹화(골드베르크 아리아, 급조작에서 가라앉는 구간) | "내 음원도, 주행에 맞춰 변주됩니다." |
+| 67.6–73.6 | arrival | 팔로우 → 탑(정차·브레이크등) | "도착하면, 오늘의 여정이 한 곡으로 남습니다." |
+| 73.6–78.1 | journey | 인서트: 여정의 곡 카드 | 주차 (P) · 여정의 곡 |
+| 78.1–86.1 | end | 엔드카드 | 링 모티프 · 드라이브 심포니 · 주행이 연주가 되는 차 · 푸터(공모전 출품작 · 에뮬레이터 녹화 · 3D 시뮬레이션 · 출시 전) |
 
-소리: `story_clean.mp4`의 합성 음원(20–28 s 새그 구간을 6–12 s에, 44–60 s 블룸 구간을 12–32 s에 배치). 자막은 `short.srt` 문구를 재사용.
+### 3-2. `short_9x16.mp4` (9:16, 45초, Spot → Solve → Scene)
 
-### AI 영상 프롬프트 (Veo 3.1 / Kling 3.0, 영어로 입력, 각 6~8초, 9:16)
+| 초 | 비트 | 내용 | 역할 |
+|---|---|---|---|
+| 0–3 | hook | 측면 트래킹 → 근접 · "급제동을 하면," | Spot |
+| 3–13 | stumble | 스텀블 안무(페달 컷·브레이크등·탑 샷) + 콜아웃 · "급제동과 급조향에는 음악이 잠시 가라앉습니다. 벌이 아니라, 숨 고르기입니다." | Spot |
+| 13–19 | recovery | 실내로 복귀 · "다시 부드럽게 달리면, 레이어가 하나씩 돌아옵니다." | Solve |
+| 19–25.5 | reward | 깜빡이·레버·디스플레이 · "깜빡이를 켜고 도는 회전에는, 바로 보상이 옵니다." | Solve |
+| 25.5–30.5 | layers | 인서트: 앱 화면 · "부드럽게 달릴수록, 레이어가 하나씩 열립니다." | Solve |
+| 30.5–36.5 | arrival | 팔로우 → 탑 · "도착하면, 오늘의 여정이 한 곡으로 남습니다." | Scene |
+| 36.5–44.5 | end | 엔드카드 · 해시태그 3개 · 푸터 | Scene |
 
-공통 접두: `cinematic, vertical 9:16, evening, soft tungsten interior light, shallow depth of field, no faces, no text, no logos, realistic Korean riverside expressway, right-hand traffic, left-hand drive sedan`
+### 3-3. `demo_full_16x9.mp4` (16:9, 약 4분 55초, 심사용 주 링크)
 
-1. Spot: `Over-the-shoulder shot from the rear seat: a driver's hands on the steering wheel of a modern sedan at dusk on a riverside expressway, the center infotainment display is dark, city lights streak past, calm, 24fps, slow dolly in`
-2. 급제동: `Interior shot, the driver's foot presses the brake pedal hard, dashboard lights reflect on the windshield, brake lights of the car ahead flare red, slight camera shake, 2 seconds of tension then release`
-3. 부드러운 주행: `Smooth steady driving at night, street lamps passing rhythmically, the center display glows softly (blank screen, to be replaced), hands relaxed on the wheel, dreamy, gentle motion`
-4. 깜빡이 회전: `Close-up of the turn-signal stalk being flicked, the dashboard indicator blinking green, then a gentle right turn onto a quiet street, warm interior`
-5. 비·와이퍼: `Rain on the windshield at night, wipers sweeping, bokeh of tail lights, the center display visible between the wipers (blank, to be replaced)`
-6. 도착: `Car parked in an underground garage, engine off, the driver's hand resting on the gear selector, the center display is the only light source (blank, to be replaced), peaceful`
-
-디스플레이는 **빈 화면(blank screen)으로 생성**하고 UI를 합성한다. 합성은 ffmpeg `perspective`(UI 4점 매핑) 또는 CapCut/Premiere의 코너핀. 예:
-
-```powershell
-# UI 클립(1920x1080)을 B-roll의 디스플레이 영역(네 모서리 좌표 x0:y0 … x3:y3, 좌상·우상·좌하·우하)에 코너핀 합성
-ffmpeg -i broll_02.mp4 -i story_clean.mp4 -filter_complex "[1:v]scale=1920:1080,format=rgba,perspective=x0=420:y0=880:x1=660:y1=860:x2=430:y2=1040:x3=665:y3=1025:sense=destination[ui];[0:v][ui]overlay=0:0:shortest=1" -c:a copy out_02.mp4
-```
-
-(실제 좌표는 B-roll 프레임을 한 장 뽑아 측정. 디스플레이 밝기 차이는 `eq=brightness=-0.05` 정도로 맞춘다.)
+인트로(3D 후킹 이동 + 타이틀, 13.5 s) → 시연 1 카드(3.5 s) → **시연 1** 데모 시나리오 녹화 전체(114 s, 단계 라벨 + 콜아웃) → 시연 2 카드(3 s) → **시연 2** Virtual Console 실신호(92 s) → 시연 3 카드(3 s) → **시연 3** 내 음원 변주(46 s) → 3D 아웃트로(팔로우 → 탑, 8 s) → 아웃트로 카드(12 s). 내레이션 9줄(합성 음성).
 
 ### 게시 문구 (숏폼 챌린지)
 
@@ -72,22 +74,22 @@ ffmpeg -i broll_02.mp4 -i story_clean.mp4 -filter_complex "[1:v]scale=1920:1080,
 
 ## 4. 사람이 할 일
 
-1. `make-demo-video.ps1` 실행 → `build/video/<ts>/demo_video_16x9.mp4`를 보고 자막 타이밍·문구 확인(`*.srt` 수정 → `video_sync.py` 재실행).
-2. 유튜브 **미등록(unlisted)** 업로드 → 접수양식 ⟦시연 영상 링크⟧. 제목·설명에 이름·소속 금지.
-3. (선택) Veo/Kling로 B-roll 6컷 생성 → 합성 → 릴스/쇼츠 업로드(세로, 45초, 해시태그 3개) → ⟦숏폼 링크⟧. 없으면 `short_9x16.mp4` 업로드.
+1. `make-demo-video.ps1` → `make-ad.ps1` 실행 뒤 `build/ad/<ts>/` 의 세 영상과 `contact_sheet.png`·`event_frames_*.png`·`verify.json` 을 본다(문구는 `video/ad/tools/lines.py`, 컷은 `tools/plan.py`).
+2. 유튜브 **미등록(unlisted)** 업로드 → 접수양식 ⟦시연 영상 링크⟧. 제목·설명에 이름·소속 금지(절차는 `제출_1차/03_시연영상/업로드_안내.md`).
+3. (선택) `short_9x16.mp4` 를 릴스/쇼츠에 업로드(세로, 45초, 해시태그 3개) → ⟦숏폼 링크⟧.
 
 ## 5. 광고급 영상 파이프라인 (video/ad · scripts/make-ad.ps1)
 
-위 1~4절의 화면 녹화 + 자막 카드 방식 대신, 같은 런 폴더에서 **Remotion**으로 렌더하는 광고급 버전이 `video/ad/`에 있다
-(자세한 사용법은 `video/ad/README.md`, 푸티지·폰트·음성 출처는 `video/ad/CREDITS.md`).
+같은 런 폴더에서 **Remotion + three.js** 로 렌더한다(자세한 사용법·구조는 `video/ad/README.md`, 환경맵·폰트·음성·효과음 출처는 `video/ad/CREDITS.md`).
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\make-ad.ps1 -Run C:\Users\user\dev\drive-symphony\build\video\<timestamp>
-# 결과: build\ad\<timestamp>\ad_16x9.mp4 (약 81초; 55초부터 변주 녹화 비트), short_9x16.mp4 (약 49초, 해시태그 포함), demo_full_16x9.mp4 (약 4.7분, 내레이션; 시연 1 시나리오 · 시연 2 실신호 · 시연 3 내 음원 변주)
-#       + narration.wav, events.json, plan.json, contact_sheet.png, event_frames_*.png, verify.json
+powershell -ExecutionPolicy Bypass -File C:\Users\user\dev\drive-symphony\scripts\make-ad.ps1 -Run C:\Users\user\dev\drive-symphony\build\video\<timestamp>   # -Run/-Out 은 절대경로
+# 결과: build\ad\<timestamp>\ad_16x9.mp4 (86초), short_9x16.mp4 (45초, 해시태그), demo_full_16x9.mp4 (약 4분 55초, 내레이션)
+#       + narration.wav, events.json, signals_story.json, plan.json, contact_sheet.png, event_frames_*.png, verify.json, render.log
 ```
 
-- 이벤트 콜아웃은 `logcat.txt`의 `drive event` 줄을 `sync.json`의 REC 배지 시각으로 클린 영상 시간에 맞춘다(±1프레임).
-- 음악은 앱 자체 WAV, 내레이션(edge-tts 한국어)은 음악을 −6 dB 덕킹. 최종 −16 LUFS / −1.5 dBTP.
-- 주행 B-roll은 Mixkit 무료 라이선스 7컷(얼굴·번호판·로고 없음), 디스플레이 패널 뒤에 어둡게 깔리며 앱 영상으로 제시하지 않는다.
-- 런 폴더에 `remix_clean.mp4`(변주 구간)가 있으면 광고의 9번째 비트와 풀 데모의 3장에 그 녹화·소리(골드베르크 아리아가 급조작에서 가라앉는 구간)가 들어가고, 없으면 비 유리 위 타이포 비트로 대체된다(`tools/lines.py`의 `REMIX_PHASES`·`REMIX_LINES`).
+- 이벤트 콜아웃은 `logcat.txt`의 `drive event` 줄을 `sync.json`의 REC 배지 시각으로 클린 영상 시간에 맞춘다(±1프레임). 3D 장면의 시나리오 시계는 내보낸 이벤트 시각과 로그 이벤트 시각의 중앙값 차(`scenario_offset`, 약 1.05초)로 녹화에 맞춘다.
+- 음악은 앱 자체 WAV, 내레이션(edge-tts 한국어)은 음악을 −6 dB 덕킹, 깜빡이 틱은 `tools/sfx.py`가 합성. 최종 −16 LUFS / −1.5 dBTP.
+- 환경맵은 Poly Haven `moonless_golf_1k.hdr`(CC0) 하나. 스톡 푸티지·AI 생성 영상·외부 3D 모델 없음.
+- 런 폴더에 `remix_clean.mp4`(변주 구간)가 있으면 광고의 remix 비트와 풀 데모의 3장에 그 녹화·소리가 들어가고, 없으면 그 비트는 건너뛴다.
+- 오버레이 그리드 검사: `python -I video/ad/tools/verify.py --check-plan video/ad/public/run/plan.json` (문제 0이어야 렌더가 진행된다).
