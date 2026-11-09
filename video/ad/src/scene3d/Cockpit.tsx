@@ -75,17 +75,18 @@ const DashBody: React.FC = () => {
   const geo = useMemo(() => {
     const s = new THREE.Shape();
     // profile in (z, y): rear-top -> windshield base -> front face -> knee -> rear-bottom
-    s.moveTo(-0.46, 0.96);
-    s.quadraticCurveTo(-0.75, 0.97, -0.96, 0.9);
+    // two levels: a low rear shelf under the display, a higher cowl toward the windshield
+    s.moveTo(-0.46, 0.78);
+    s.lineTo(-0.6, 0.79);
+    s.quadraticCurveTo(-0.7, 0.8, -0.76, 0.94);
+    s.lineTo(-0.98, 0.95);
     s.lineTo(-1.02, 0.72);
     s.quadraticCurveTo(-0.95, 0.5, -0.74, 0.46);
     s.lineTo(-0.5, 0.44);
-    s.quadraticCurveTo(-0.44, 0.62, -0.5, 0.8);
-    s.lineTo(-0.52, 0.9);
-    s.quadraticCurveTo(-0.52, 0.96, -0.46, 0.96);
+    s.quadraticCurveTo(-0.44, 0.6, -0.46, 0.78);
     const g = new THREE.ExtrudeGeometry(s, {depth: 2.1, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 3, curveSegments: 24});
     g.rotateY(-Math.PI / 2); // extrusion axis (+z) -> +x
-    g.translate(-1.05, 0, 0);
+    g.translate(1.05, 0, 0); // extrusion ran toward -x after the rotation: centre it
     g.computeVertexNormals();
     return g;
   }, []);
@@ -202,7 +203,7 @@ const Footwell: React.FC<{brake: number; throttle: number}> = ({brake, throttle}
 const Cluster: React.FC<{flow: number; blinker: DriveState['blinker']; blinkOn: boolean}> = ({flow, blinker, blinkOn}) => {
   const f = Math.max(0.03, Math.min(1, flow));
   return (
-    <group position={[DX, 0.93, -0.7]} rotation={[-0.28, 0, 0]}>
+    <group position={[DX, 1.0, -0.8]} rotation={[-0.3, 0, 0]}>
       <RoundedBox args={[0.52, 0.11, 0.024]} radius={0.01} smoothness={4}>
         <meshPhysicalMaterial color="#04060A" roughness={0.1} clearcoat={1} clearcoatRoughness={0.08} />
       </RoundedBox>
@@ -244,7 +245,7 @@ const Display: React.FC<{src: string; glow: number}> = ({src, glow}) => {
   const w = 0.42;
   const h = (w * 821) / 1252;
   return (
-    <group position={[0.2, 0.86, -0.62]} rotation={[-0.1, -0.16, 0]}>
+    <group position={[0.2, 0.92, -0.6]} rotation={[-0.14, -0.16, 0]}>
       <RoundedBox args={[w + 0.028, h + 0.028, 0.018]} radius={0.01} smoothness={4} position={[0, 0, -0.011]}>
         <meshPhysicalMaterial color="#04060A" roughness={0.12} clearcoat={1} clearcoatRoughness={0.06} />
       </RoundedBox>
@@ -269,12 +270,12 @@ const Cabin: React.FC<{flow: number}> = ({flow}) => {
       <DashBody />
       {/* metallic trim line along the dash break */}
       {/* ambient light strip in the groove under the lip: colour and intensity follow flow */}
-      <mesh position={[0, 0.94, -0.452]}>
+      <mesh position={[0, 0.765, -0.452]}>
         <boxGeometry args={[1.96, 0.0025, 0.003]} />
         <meshStandardMaterial color={strip} emissive={strip} emissiveIntensity={0.18 + flow * 0.22} metalness={0} roughness={1} />
       </mesh>
       {[-0.6, 0, 0.6].map((x) => (
-        <pointLight key={x} position={[x, 0.93, -0.4]} intensity={0.06 + flow * 0.12} distance={0.8} decay={2} color={strip} />
+        <pointLight key={x} position={[x, 0.76, -0.4]} intensity={0.06 + flow * 0.12} distance={0.8} decay={2} color={strip} />
       ))}
       {/* A-pillars and roof lip */}
       <mesh position={[-1.08, 1.1, -0.55]} rotation={[0.35, 0.25, 0.08]}>
@@ -301,7 +302,7 @@ const Cabin: React.FC<{flow: number}> = ({flow}) => {
       {/* hood */}
       <mesh position={[0, 0.84, -1.95]} rotation={[0.08, 0, 0]}>
         <boxGeometry args={[1.95, 0.06, 1.7]} />
-        <meshPhysicalMaterial color="#121A2C" roughness={0.25} metalness={0.7} clearcoat={1} clearcoatRoughness={0.12} />
+        <meshPhysicalMaterial color="#101727" roughness={0.45} metalness={0.5} clearcoat={0.5} clearcoatRoughness={0.3} />
       </mesh>
     </group>
   );
