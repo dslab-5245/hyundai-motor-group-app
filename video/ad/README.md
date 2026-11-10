@@ -6,7 +6,7 @@ deterministically with [Remotion](https://www.remotion.dev) (React → headless 
 
 | output | what | length |
 |---|---|---|
-| `ad_16x9.mp4` | cinematic product film: a procedural 3D car on a wet night road, the camera gliding from outside the car into the cabin and back, driven frame-exact by the demo scenario's own signals; hook → reveal → reward → layers → stumble → recovery → bloom → grace → rain → remix → arrival → journey → end card | 86 s |
+| `ad_16x9.mp4` | cinematic product film: a 3D concept coupe on a wet night road past a lit skyline, the camera gliding from outside the car into the cabin and back, driven frame-exact by the demo scenario's own signals; hook → reveal → reward → layers → stumble → recovery → bloom → grace → rain → remix → arrival → journey → end card | 86 s |
 | `short_9x16.mp4` | vertical short (Spot → Solve → Scene): hook → stumble → recovery → reward → layers → arrival → end card with the contest hashtags | 45 s |
 | `demo_full_16x9.mp4` | narrated full demo: 3D intro, chapter cards, the whole story / Virtual Console / remix recordings flat with phase labels and call-outs, 3D outro, outro card | ~4 min 55 s |
 
@@ -59,11 +59,13 @@ plan.json ──Remotion (src/)──► raw mp4 ──post.py finalize (loudnor
   rear with the brake-light flare and the nose dip → pull back up to a top shot while the music sinks → back down
   through the driver's window as it recovers. Music is the app's own WAV (gain from `sync.json`), cut only where the
   picture cuts; it ducks −6 dB under speech.
-* **3D** (`src/scene3d/`). `Car.tsx` (body shell as an extruded profile with a clipped cabin cavity, greenhouse glass
-  that fades as the camera passes through it, wheels, light bars, brake and indicator lamps), `Cockpit.tsx` (two-level
-  dash, wheel, pedals in a footwell, stalk, slim cluster, ambient strip, seats, the display with the recording as a
-  video texture), `World.tsx` (wet three-lane road with feathered puddles, dashed lines, lamp posts, guard rail,
-  rain), `Scene.tsx` (HDRI + key/fill + studio area panels that dim when the camera is inside; bloom, chromatic
+* **3D** (`src/scene3d/`). `CarModel.tsx` (the car: the Khronos glTF sample "Car Concept", CC BY 4.0, see
+  `CREDITS.md`; logo plate and emblem hidden, repainted navy; wheels, calipers, steering wheel, pedals, brake /
+  indicator / head lights and the cluster glow are driven by the drive signals; glass fades as the camera passes
+  through it; central driving position), `Cockpit.tsx` (the drive-state type and the floating display with the
+  recording as a video texture; the older procedural cabin is only used by the `Cockpit3D` spike), `World.tsx` (damp
+  three-lane road with a fine grain and soft wetter patches, dashed lines, lamp posts, guard rail, a skyline of lit
+  windows, rain), `Scene.tsx` (HDRI + key/fill + studio area panels that dim when the camera is inside; bloom, chromatic
   aberration that grows with the penalty pulse, vignette, grain, ACES). The world moves, the car stays at the origin.
 * **Design v3** (`src/`). `theme.ts` (deep navy #060A12 → #0B1220, ice #8FB3FF, text #C9D6F2, Pretendard 400/500, no
   heavy weights), `layout.ts` (fixed, disjoint zones per orientation: title top-left, phase label top-right, message
@@ -86,7 +88,8 @@ plan.json ──Remotion (src/)──► raw mp4 ──post.py finalize (loudnor
   renders single frames in ~30 s; `npx remotion studio` scrubs the timeline.
 * New camera → `CAM` in `src/scene3d/camera.ts` (position, look-at, fov); `insideness()` decides when the glass and
   the studio rig fade.
-* Different look → lights and effects in `src/scene3d/Scene.tsx`, materials in `Car.tsx` / `Cockpit.tsx`.
+* Different look → lights and effects in `src/scene3d/Scene.tsx`, paint and lamps in `CarModel.tsx`. Every camera
+  preset can be judged from one still each: `npx remotion render src/index.ts Preset3D out/pre --sequence --scale 0.5`.
 * Different grid → `src/layout.ts` and the matching `ZONES` table in `tools/verify.py`.
 * A run with a different scenario still renders: beats that cannot find their anchor fall back to defaults in
   `plan.py:anchors()`; a run without `console_clean.mp4` skips the console chapter; without `remix_clean.mp4` the
@@ -96,7 +99,8 @@ plan.json ──Remotion (src/)──► raw mp4 ──post.py finalize (loudnor
 
 ## Known limits
 
-* The car is a procedural, nameless study (no brand design); the road is a straight night expressway. The Virtual
+* The car is a nameless concept coupe (no badge, no plate, no brand design; attribution in `CREDITS.md` and on the
+  end card); its wipers do not move; the road is a straight night expressway. The Virtual
   Console chapter of the full demo shows the emulator's blind-spot camera inset as recorded.
 * `useOffthreadVideoTexture` (the recording on the car display) only works while rendering; the Remotion Studio
   preview shows a still of the app pane instead.
