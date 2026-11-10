@@ -124,6 +124,67 @@ class TrackProcessorTest {
         assertTrue(bad.peak <= 1f, "no clipping")
     }
 
+    /** Runs [seconds] of the song under [state] and returns the processor (to read its tape speed). */
+    private fun runFor(state: ScoreState, seconds: Float): TrackProcessor {
+        val director = MusicDirector(Genre.LOFI)
+        val tp = TrackProcessor(sr)
+        val sig = DrivingSignals(0.0, gear = Gear.DRIVE)
+        val song = song(seconds, hats = false)
+        val inBlk = FloatArray(block * 2); val outBlk = FloatArray(block * 2)
+        var f = 0
+        val frames = song.size / 2
+        while (f < frames) {
+            val n = minOf(block, frames - f)
+            val p = director.update(state, sig, n.toFloat() / sr)
+            System.arraycopy(song, f * 2, inBlk, 0, n * 2)
+            tp.process(inBlk, outBlk, n, p)
+            f += n
+        }
+        return tp
+    }
+
+    @Test
+    fun erraticDrivingDragsTheTapeAndSmoothDrivingDoesNot() {
+        val calm = runFor(safe, 3f)
+        val rough = runFor(erratic, 3f)
+        println("remix tape speed: safe ${"%.4f".format(calm.speed)} erratic ${"%.4f".format(rough.speed)} (dark ${"%.2f".format(rough.dark)})")
+        assertTrue(calm.speed > 0.999f, "smooth driving must play the song at its own speed (got ${calm.speed})")
+        assertTrue(rough.speed < 1f - TrackProcessor.MAX_DRAG * 0.6f, "erratic driving must drag the tape clearly (got ${rough.speed})")
+        assertTrue(rough.speed >= 1f - TrackProcessor.MAX_DRAG - 1e-4f, "but never below the maximum drag (got ${rough.speed})")
+    }
+
+    /** Processes [seconds] under [state] on an existing processor/director pair. */
+    private fun advance(tp: TrackProcessor, director: MusicDirector, state: ScoreState, seconds: Float) {
+        val sig = DrivingSignals(0.0, gear = Gear.DRIVE)
+        val song = song(seconds, hats = false)
+        val inBlk = FloatArray(block * 2); val outBlk = FloatArray(block * 2)
+        var f = 0
+        val frames = song.size / 2
+        while (f < frames) {
+            val n = minOf(block, frames - f)
+            val p = director.update(state, sig, n.toFloat() / sr)
+            System.arraycopy(song, f * 2, inBlk, 0, n * 2)
+            tp.process(inBlk, outBlk, n, p)
+            f += n
+        }
+    }
+
+    @Test
+    fun theSongDivesAtOnceAndSurfacesSlowly() {
+        val director = MusicDirector(Genre.LOFI)
+        val tp = TrackProcessor(sr)
+        advance(tp, director, safe, 1f)
+        assertTrue(tp.dark < 0.02f, "smooth: not under water (dark ${tp.dark})")
+        advance(tp, director, erratic, 1f)
+        val dived = tp.dark
+        assertTrue(dived > 0.8f, "one second of erratic driving must put the song under water (dark $dived)")
+        advance(tp, director, safe, 2f)
+        println("remix release: dark after dive ${"%.2f".format(dived)}, +2 s calm ${"%.2f".format(tp.dark)} (speed ${"%.3f".format(tp.speed)})")
+        assertTrue(tp.dark > 0.5f, "two seconds after the drive calmed the song must still be audibly under water (dark ${tp.dark})")
+        advance(tp, director, safe, TrackProcessor.RELEASE_SEC + 2f)
+        assertTrue(tp.dark < 0.03f && tp.speed > 0.995f, "after the release it is back to the recording (dark ${tp.dark}, speed ${tp.speed})")
+    }
+
     @Test
     fun stateSwitchesDoNotClick() {
         // pure tones: any sample-to-sample jump beyond the tones' own slope is a click from parameter changes

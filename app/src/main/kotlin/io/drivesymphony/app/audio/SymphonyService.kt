@@ -188,7 +188,8 @@ class SymphonyService : MediaBrowserServiceCompat() {
     private fun renderBlock(buf: FloatArray, frames: Int) {
         if (mode == PlayMode.REMIX) {
             val tp = trackPlayer
-            if (tp != null) { tp.read(buf, frames); trackProcessor.process(buf, buf, frames, engine.params) }
+            // the song is read at the processor's tape speed (slower while the drive is rough), then bent by the same params
+            if (tp != null) { tp.read(buf, frames, trackProcessor.speed); trackProcessor.process(buf, buf, frames, engine.params) }
             else java.util.Arrays.fill(buf, 0, frames * 2, 0f)
             // the engine is not rendering here, so publish its score/params state ourselves: the glance (flow ring,
             // event captions) follows the drive in remix mode exactly as in generative mode
@@ -612,6 +613,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
             //   adb shell am startservice -n io.drivesymphony.app/.audio.SymphonyService -a io.drivesymphony.action.DEMO --ez on true --es scenario story
             ACTION_DEMO -> setDemo(intent.getBooleanExtra("on", true), intent.getStringExtra("scenario") ?: settings.demoScenarioId)
             ACTION_RECORD -> setRecording(intent.getBooleanExtra("on", true), intent.getStringExtra("path"))
+            ACTION_FEEDBACK -> setFeedbackLevel(intent.getIntExtra("level", 1))   // 0 부드럽게 · 1 기본 · 2 강하게 (capture scripts pin 1)
             ACTION_REMIX_DEMO -> setRemixDemo(intent.getBooleanExtra("on", true))
             GLEO_START, GLEO_SET_GENRE, GLEO_HOW_IS_MY_DRIVING, GLEO_PAUSE -> handleGleoIntent(intent)
         }
@@ -721,6 +723,7 @@ class SymphonyService : MediaBrowserServiceCompat() {
         const val ACTION_NEXT_GENRE = "io.drivesymphony.action.NEXT_GENRE"
         const val ACTION_DEMO = "io.drivesymphony.action.DEMO"
         const val ACTION_RECORD = "io.drivesymphony.action.RECORD"
+        const val ACTION_FEEDBACK = "io.drivesymphony.action.FEEDBACK"
         const val ACTION_REMIX_DEMO = "io.drivesymphony.action.REMIX_DEMO"
         /** bundled public-domain piano excerpt for remix mode (assets/demo_track_LICENSE.txt) */
         const val DEMO_TRACK = "demo_track.ogg"

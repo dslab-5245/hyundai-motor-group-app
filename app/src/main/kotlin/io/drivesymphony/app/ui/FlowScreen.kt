@@ -112,7 +112,7 @@ private fun FlowLines(engine: EngineState?, ui: ServiceUiState, modifier: Modifi
         StatusLine(engine)
         Spacer(Modifier.height(26.dp))
         if (remix) {
-            Text(text = "원곡 · 로우패스 · 테이프 새그 · 스테레오 폭이 주행을 따릅니다", fontSize = 22.sp, color = DsColors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = "원곡 · 로우패스 · 테이프 속도 · 음량 · 폭이 주행을 따릅니다", fontSize = 22.sp, color = DsColors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         } else {
             LayerMeter(engine?.layers ?: emptyList())
         }

@@ -107,6 +107,7 @@ function Record-Segment([string]$name, [int]$limitSec, [scriptblock]$action) {
 # ---- segment 1: the demo story (106 s) + journey card
 Record-Segment 'story' 125 {
     $timing['story_demo'] = Now
+    Adb shell am startservice -n $svc -a io.drivesymphony.action.FEEDBACK --ei level 1 | Out-Null   # '기본' response strength: a stale '부드럽게' (0.6x) once made the remix dip inaudible
     Adb shell am startservice -n $svc -a io.drivesymphony.action.DEMO --ez on true --es scenario story | Out-Null
     $timing['story_play'] = Now
     Adb shell am startservice -n $svc -a io.drivesymphony.action.PLAY | Out-Null

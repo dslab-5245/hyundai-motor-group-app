@@ -78,6 +78,7 @@ function Ensure-Front([int]$tries = 6) {
 
 Write-Host "== launch: activity, demo story via DEMO action, then PLAY" -ForegroundColor Cyan
 Ensure-Front | Out-Null
+Adb shell am startservice -n $svc -a io.drivesymphony.action.FEEDBACK --ei level 1 | Out-Null   # '기본' response strength
 Adb shell am startservice -n $svc -a io.drivesymphony.action.DEMO --ez on true --es scenario story | Out-Null
 Adb shell am startservice -n $svc -a io.drivesymphony.action.PLAY | Out-Null
 Start-Sleep -Seconds 6

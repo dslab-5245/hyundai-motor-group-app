@@ -91,7 +91,7 @@ fun ComposerScreen(
                 ui.remixError?.let { Spacer(Modifier.height(4.dp)); Text(text = "재생 오류: $it", fontSize = 17.sp, color = DsColors.warn, maxLines = 2) }
                 if (ui.mode == PlayMode.REMIX) {
                     Spacer(Modifier.height(4.dp))
-                    Text(text = "같은 Flow 규칙으로 로우패스 · 워블 · 스테레오 폭이 변합니다 (스트리밍 앱 음원은 지원하지 않음)", fontSize = 17.sp, color = DsColors.muted, maxLines = 2)
+                    Text(text = "같은 Flow 규칙으로 로우패스 · 테이프 속도 · 음량 · 폭이 변합니다. 정차 중엔 원곡 그대로, 주행(또는 데모 시나리오)에서 변주가 들립니다. 스트리밍 앱 음원은 지원하지 않음.", fontSize = 17.sp, color = DsColors.muted, maxLines = 3, style = PhraseBreak)
                 }
             }
         }

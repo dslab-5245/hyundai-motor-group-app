@@ -6,6 +6,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.util.Log
+import io.drivesymphony.engine.remix.Varispeed
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -41,18 +42,15 @@ class LocalTrackPlayer(private val context: Context, private val uri: Uri, priva
         thread = null
     }
 
-    /** Audio thread: fills [out] with [frames] stereo frames (zeros on underrun). Never blocks. */
-    fun read(out: FloatArray, frames: Int) {
-        val rp = readPos
-        val n = minOf(frames, (writePos - rp).toInt())
-        var idx = (rp % ringFrames).toInt() * 2
-        var o = 0
-        for (i in 0 until n) {
-            out[o++] = ring[idx]; out[o++] = ring[idx + 1]
-            idx += 2; if (idx >= ring.size) idx = 0
-        }
-        for (i in n until frames) { out[o++] = 0f; out[o++] = 0f }
-        readPos = rp + n   // published after the copy: the decoder may now overwrite what was read
+    private val cursor = Varispeed.Cursor()   // audio thread only
+
+    /**
+     * Audio thread: fills [out] with [frames] stereo frames read at tape [speed] (1 = as recorded, < 1 drags: remix
+     * mode slows the song while the drive is rough). Zeros on underrun. Never blocks.
+     */
+    fun read(out: FloatArray, frames: Int, speed: Float = 1f) {
+        Varispeed.read(ring, ringFrames, cursor, writePos, out, frames, speed)
+        readPos = cursor.frame   // published after the copy: the decoder may now overwrite what was read
     }
 
     // Decoder thread collects resampled frames in a local batch and pushes them into the ring in bulk.
