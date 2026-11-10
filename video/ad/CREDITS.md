@@ -1,16 +1,30 @@
 # Credits — 3D scene, environment map, fonts, voice, sound
 
-Everything below is licence-safe for a public contest video without attribution; it is listed here anyway.
+Everything below is licence-safe for a public contest video. One asset (the car model) requires attribution; the
+end card of every film and the upload description carry it.
+
+## Car model (CC BY 4.0, attribution required)
+
+| file | source | licence |
+|---|---|---|
+| `public/models/carconcept/CarConcept.glb` | "Car Concept", Khronos glTF Sample Assets — https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept | © 2024, Darmstadt Graphics Group GmbH, CC BY 4.0 (model and textures: Eric Chadwick). Started from the public-domain (CC0) "Free Concept Car 004" by Unity Fan. |
+
+The licence excludes the Khronos and 3D Commerce logos, so they are not shown: `src/scene3d/CarModel.tsx` hides the
+logo plate (`License_Plate`) and the steering-wheel emblem (`InteriorSteeringEmblem`) and drops the lettered tyre
+sidewall texture. Changes made to the model (CC BY "indicate if changes were made"): repainted deep navy with dark
+upholstery, glass replaced by a plain tinted material, brake/indicator/head lights and the cluster glow driven by the
+drive signals, wheels, steering wheel and pedals animated, a floating centre display added. The car carries no badge,
+no plate and no brand design.
 
 ## 3D scene (own work, no stock footage)
 
-The car, the cabin, the road, the lamps, the rain: all procedural three.js geometry written in `src/scene3d/`
-(`Car.tsx`, `Cockpit.tsx`, `World.tsx`, `Scene.tsx`, `camera.ts`). No third-party models and no stock video. The car
-is a nameless study — no badge, no plate, no brand design — and it is driven by the engine's own per-frame signals of
-the demo scenario (`public/run/signals_story.json`, exported by `gradle :engine:dumpSignals`), so the steering wheel,
-pedals, indicator, wipers, brake lights and the Flow glow are frame-exact with the music. The centre display shows the
-real emulator recording as a video texture (`src/components/Scene3D.tsx`). The end card says so: contest entry,
-emulator screen recording, 3D simulation, not on the market.
+The road, the lamps, the skyline, the rain, the lighting and the camera are procedural three.js written in
+`src/scene3d/` (`World.tsx`, `Scene.tsx`, `camera.ts`, `CarModel.tsx`). No stock video. The car is driven by the
+engine's own per-frame signals of the demo scenario (`public/run/signals_story.json`, exported by
+`gradle :engine:dumpSignals`), so the steering wheel, pedals, indicators, brake lights and the Flow glow are
+frame-exact with the music. The centre display shows the real emulator recording as a video texture
+(`src/components/Scene3D.tsx`). The end card says so: contest entry, emulator screen recording, 3D simulation, not on
+the market.
 
 ## Environment map (Poly Haven, CC0)
 

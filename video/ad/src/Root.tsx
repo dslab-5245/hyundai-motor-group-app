@@ -5,6 +5,7 @@ import type {Plan} from './plan';
 import type {Signals} from './scene3d/signals';
 import {CockpitSpike} from './scene3d/CockpitSpike';
 import {ExteriorSpike} from './scene3d/ExteriorSpike';
+import {PresetSpike} from './scene3d/PresetSpike';
 
 let cached: Promise<{plan: Plan; signals: Signals | null}> | null = null;
 const load = () => {
@@ -53,6 +54,7 @@ export const Root: React.FC = () => (
       />
     ))}
     <Composition id="Cockpit3D" component={CockpitSpike} width={1920} height={1080} fps={30} durationInFrames={240} />
+    <Composition id="Preset3D" component={PresetSpike} width={1920} height={1080} fps={30} durationInFrames={44} />
     <Composition id="Exterior3D" component={ExteriorSpike} width={1920} height={1080} fps={30} durationInFrames={300} />
   </>
 );

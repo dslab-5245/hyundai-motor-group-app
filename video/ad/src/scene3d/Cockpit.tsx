@@ -197,6 +197,8 @@ export const Cluster: React.FC<{flow: number; blinker: DriveState['blinker']; bl
   );
 };
 
+/** Centre of the app's display: on the dash, right of the (central) steering wheel, turned to the driver. */
+export const DISPLAY_POS: [number, number, number] = [0.47, 0.78, -1.2];
 const DISPLAY_W = 0.42;
 const DISPLAY_H = (DISPLAY_W * 821) / 1252;
 
@@ -204,7 +206,7 @@ const DISPLAY_H = (DISPLAY_W * 821) / 1252;
 export const DisplayPanel: React.FC<{tex: THREE.Texture; glow: number}> = ({tex, glow}) => {
   const w = DISPLAY_W, h = DISPLAY_H;
   return (
-    <group position={[0.2, 0.92, -0.6]} rotation={[-0.14, -0.16, 0]}>
+    <group position={DISPLAY_POS} rotation={[-0.16, -0.34, 0]}>
       <RoundedBox args={[w + 0.028, h + 0.028, 0.018]} radius={0.01} smoothness={4} position={[0, 0, -0.011]}>
         <meshPhysicalMaterial color="#04060A" roughness={0.12} clearcoat={1} clearcoatRoughness={0.06} />
       </RoundedBox>

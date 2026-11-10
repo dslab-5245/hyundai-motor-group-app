@@ -445,7 +445,7 @@ def main():
             "tick": "gen/tick.wav" if os.path.exists(os.path.join(pub, "gen", "tick.wav")) else None,
             "hashtags": HASHTAGS,
             "noise": "gen/noise.png" if os.path.exists(os.path.join(pub, "gen", "noise.png")) else None,
-            "footer": "공모전 출품작 · 에뮬레이터 화면 녹화와 앱 자체 음원 · 차량·도로는 3D 시뮬레이션 · 출시 전",
+            "footer": "공모전 출품작 · 에뮬레이터 화면 녹화와 앱 자체 음원 · 차량·도로는 3D 시뮬레이션 · 출시 전 · 차량 모델 Car Concept © 2024 Darmstadt Graphics Group GmbH, CC BY 4.0 (색·등화 수정)",
             "compositions": {"Ad16x9": ad(S, narr, signals), "Short9x16": short(S, narr, signals), "DemoFull16x9": demo(S, narr, signals)}}
     json.dump(plan, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     for name in ("story", "remix"):

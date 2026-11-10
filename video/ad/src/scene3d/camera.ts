@@ -1,5 +1,6 @@
-// Camera presets (car-local metres: the car faces -z, the driver sits at x = DX on the left, the ground is at y = -0.28)
-// and a keyframed camera path with continuous velocity, so one move can glide from outside the car to the driver's seat.
+// Camera presets (car-local metres: the car faces -z, the driver sits in the centre (x = 0, a three-seater), the ground
+// is at y = 0, the roof at 1.15, the nose at z = -2.4, the tail at z = 1.9) and a keyframed camera path with continuous
+// velocity, so one move can glide from outside the car to the driver's seat.
 export type V3 = [number, number, number];
 
 export interface CamState {
@@ -8,33 +9,33 @@ export interface CamState {
   fov: number;
 }
 
-export const DX = -0.36; // driver's lateral position
+export const DX = 0; // driver's lateral position
 
 export const CAM: Record<string, CamState> = {
-  // interior
-  wide: {pos: [DX + 0.22, 1.19, 0.5], look: [DX + 0.05, 0.9, -4.0], fov: 50},
-  wheel: {pos: [DX + 0.12, 1.02, 0.22], look: [DX, 0.8, -0.45], fov: 38},
-  pedal: {pos: [DX + 0.14, 0.8, 0.22], look: [DX - 0.03, 0.22, -0.62], fov: 40},
-  stalk: {pos: [DX - 0.05, 1.0, 0.12], look: [DX - 0.2, 0.84, -0.6], fov: 34},
-  display: {pos: [DX + 0.25, 1.02, 0.1], look: [0.19, 0.9, -0.61], fov: 32},
-  road: {pos: [DX + 0.1, 1.15, 0.1], look: [DX + 0.1, 1.0, -8.0], fov: 56},
-  passenger: {pos: [0.55, 1.12, 0.35], look: [DX - 0.1, 0.86, -0.6], fov: 44},
+  // interior (eye height about 0.98; wheel hub at [0, 0.65, -0.94]; display at [0.47, 0.78, -1.2]; pedals at z = -1.5)
+  wide: {pos: [0.04, 0.99, -0.34], look: [0.12, 0.74, -4.0], fov: 62},
+  wheel: {pos: [0.1, 0.96, -0.38], look: [0.04, 0.66, -1.0], fov: 46},
+  pedal: {pos: [0.24, 0.44, -0.98], look: [-0.03, 0.24, -1.52], fov: 44},
+  stalk: {pos: [-0.2, 0.93, -0.5], look: [-0.06, 0.7, -1.15], fov: 38},
+  display: {pos: [0.2, 0.95, -0.5], look: [0.47, 0.77, -1.2], fov: 34},
+  road: {pos: [0, 1.0, -0.55], look: [0, 0.86, -8.0], fov: 58},
+  passenger: {pos: [0.5, 0.99, -0.02], look: [0.05, 0.7, -1.1], fov: 50},
   // exterior (third person)
-  follow: {pos: [1.6, 1.35, 6.4], look: [0, 0.72, -1.6], fov: 38},
-  followLow: {pos: [0.9, 0.5, 6.2], look: [0, 0.72, -2.0], fov: 40},
-  side: {pos: [8.4, 1.0, -0.3], look: [0, 0.62, -0.3], fov: 36},
-  sideDriver: {pos: [-8.4, 1.0, -0.3], look: [0, 0.62, -0.3], fov: 36},
-  sideClose: {pos: [5.2, 0.8, -1.2], look: [0, 0.6, -0.9], fov: 36},
-  frontQ: {pos: [-3.9, 1.0, -5.8], look: [0.1, 0.55, -0.6], fov: 34},
-  frontQR: {pos: [3.9, 1.0, -5.8], look: [-0.1, 0.55, -0.6], fov: 34},
-  rear: {pos: [-0.4, 0.9, 5.9], look: [0, 0.75, 0.2], fov: 36},
-  rearLow: {pos: [0.9, 0.32, 4.8], look: [0, 0.68, 0.4], fov: 42},
-  lowFront: {pos: [2.9, 0.3, -3.9], look: [-0.3, 0.55, -0.8], fov: 42},
-  wheelClose: {pos: [2.3, 0.28, -2.7], look: [0.86, 0.1, -1.65], fov: 28},
-  top: {pos: [0.5, 8.2, 2.6], look: [0, 0.3, -0.5], fov: 40},
-  nose: {pos: [0.2, 0.8, -4.8], look: [0, 0.72, -2.0], fov: 36},
-  doorGlass: {pos: [-1.9, 1.15, 0.1], look: [DX + 0.3, 0.9, -0.5], fov: 36}, // just outside the driver's window
-  sideDriverHigh: {pos: [-5.2, 2.8, 0.8], look: [0, 0.8, -0.3], fov: 36},
+  follow: {pos: [1.6, 1.5, 6.6], look: [0, 0.6, -1.4], fov: 38},
+  followLow: {pos: [0.9, 0.5, 6.2], look: [0, 0.6, -1.6], fov: 40},
+  side: {pos: [5.7, 0.9, -0.2], look: [0, 0.52, -0.2], fov: 48},
+  sideDriver: {pos: [-5.7, 0.9, -0.2], look: [0, 0.52, -0.2], fov: 48},
+  sideClose: {pos: [4.6, 0.75, -1.4], look: [0, 0.5, -0.5], fov: 40},
+  frontQ: {pos: [-3.9, 1.05, -6.2], look: [0.1, 0.48, -0.6], fov: 34},
+  frontQR: {pos: [3.9, 1.05, -6.2], look: [-0.1, 0.48, -0.6], fov: 34},
+  rear: {pos: [-0.4, 1.0, 6.1], look: [0, 0.62, 0.4], fov: 36},
+  rearLow: {pos: [0.9, 0.34, 5.0], look: [0, 0.58, 0.6], fov: 42},
+  lowFront: {pos: [2.9, 0.32, -4.4], look: [-0.3, 0.48, -1.0], fov: 42},
+  wheelClose: {pos: [2.6, 0.42, -2.9], look: [1.0, 0.36, -1.5], fov: 28},
+  top: {pos: [0.5, 8.6, 2.4], look: [0, 0.3, -0.3], fov: 40},
+  nose: {pos: [0.2, 0.85, -5.4], look: [0, 0.58, -2.0], fov: 36},
+  doorGlass: {pos: [-2.0, 1.0, -0.35], look: [0.25, 0.72, -0.95], fov: 36}, // just outside the left window
+  sideDriverHigh: {pos: [-5.2, 2.8, 0.8], look: [0, 0.6, -0.2], fov: 36},
 };
 
 export const mixCam = (a: CamState, b: CamState, k: number): CamState => ({
@@ -96,10 +97,10 @@ export const camPath = (keys: CamKey[], t: number): CamState => {
 };
 
 /** True when the camera sits inside the cabin (then the glass is hidden and the exterior shell is seen from within). */
-export const camInside = (pos: V3) => Math.abs(pos[0]) < 1.0 && pos[1] > 0.3 && pos[1] < 1.5 && pos[2] > -1.0 && pos[2] < 1.4;
+export const camInside = (pos: V3) => Math.abs(pos[0]) < 0.95 && pos[1] > 0.12 && pos[1] < 1.14 && pos[2] > -1.8 && pos[2] < 1.4;
 
 /** 0 outside .. 1 deep inside: fades the glass as the camera flies through it. */
 export const insideness = (pos: V3) => {
-  const d = Math.hypot(pos[0] * 1.6, (pos[1] - 1.05) * 2.2, (pos[2] - 0.15) * 0.9);
-  return Math.min(1, Math.max(0, (2.6 - d) / 1.2)); // ~0 at the driver's window, 1 well inside
+  const d = Math.hypot(pos[0] * 1.6, (pos[1] - 0.8) * 2.2, (pos[2] + 0.4) * 0.9);
+  return Math.min(1, Math.max(0, (2.7 - d) / 1.2)); // ~0 at the side window, 1 well inside
 };

@@ -1,4 +1,4 @@
-// One frame of the 3D film: camera, lighting, the car (shell + interior), the world and the film look (bloom, slight
+// One frame of the 3D film: camera, lighting, the car (the concept coupe of CarModel.tsx), the world and the film look (bloom, slight
 // aberration that grows with the penalty pulse, vignette, grain, ACES). Rendered inside a ThreeCanvas by the Film's
 // Scene3D layer and by the spikes.
 import React, {useLayoutEffect, useMemo, useRef} from 'react';
@@ -10,14 +10,14 @@ import {ToneMappingMode} from 'postprocessing';
 import {staticFile} from 'remotion';
 import {RectAreaLightUniformsLib} from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import {type CamState, insideness} from './camera';
-import {Car} from './Car';
-import {Interior, type DriveState} from './Cockpit';
+import {ConceptCar} from './CarModel';
+import type {DriveState} from './Cockpit';
 import {World} from './World';
 
 const Camera: React.FC<{cam: CamState; shake: number; t: number}> = ({cam, shake, t}) => {
   const {camera, gl, invalidate} = useThree();
   useLayoutEffect(() => {
-    gl.localClippingEnabled = true; // the body shell's cabin cut-out
+    gl.localClippingEnabled = true; // the left/right split of the indicator and headlight strips
     const c = camera as THREE.PerspectiveCamera;
     // a little hand-held life on the penalty pulse: two incommensurate sines, a few millimetres
     const sx = shake * 0.006 * Math.sin(t * 31.0), sy = shake * 0.004 * Math.sin(t * 23.7 + 1.0);
@@ -78,8 +78,7 @@ export const Scene: React.FC<{state: DriveState; cam: CamState; display: React.R
       <AreaLight pos={[0, 5.5, -0.8]} at={[0, 0, -0.8]} w={7} h={1.4} intensity={9 * studio} />
       <AreaLight pos={[-6.5, 1.7, 0.2]} at={[0, 0.6, 0.2]} w={6} h={0.7} intensity={6 * studio} />
       <AreaLight pos={[6.5, 1.7, 0.2]} at={[0, 0.6, 0.2]} w={6} h={0.7} intensity={6 * studio} />
-      <Car state={state} glassOpacity={glass} />
-      <Interior state={state} display={display} />
+      <ConceptCar state={state} glassOpacity={glass} inside={inside} display={display} />
       <World dist={state.dist} t={state.t} rain={state.rain} />
       <EffectComposer multisampling={4}>
         <Bloom luminanceThreshold={0.92} intensity={0.55} mipmapBlur radius={0.55} />
