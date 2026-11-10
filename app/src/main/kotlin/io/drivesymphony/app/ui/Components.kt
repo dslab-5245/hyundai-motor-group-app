@@ -3,6 +3,7 @@ package io.drivesymphony.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -78,6 +79,7 @@ fun Segmented(
             .border(1.dp, DsColors.line, ControlShape)
             .clip(ControlShape)
             .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         for ((i, label) in options.withIndex()) {
             val sel = i == selected
@@ -87,11 +89,12 @@ fun Segmented(
                     .fillMaxHeight()
                     .clip(TagShape)
                     .background(if (sel) DsColors.accent.copy(alpha = 0.16f) else Color.Transparent)
-                    .clickable { onSelect(i) },
+                    .clickable { onSelect(i) }
+                    .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = label, fontSize = fontSize.sp, maxLines = 1, softWrap = false,
+                    text = label, fontSize = fontSize.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = if (sel) DsColors.accent else DsColors.muted,
                     fontWeight = if (sel) FontWeight.Medium else FontWeight.Normal,
                 )
