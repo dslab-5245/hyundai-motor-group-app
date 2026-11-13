@@ -104,6 +104,9 @@ function Record-Segment([string]$name, [int]$limitSec, [scriptblock]$action) {
     Get-Item "$Out\ds_$name.mp4", "$Out\ds_$name.wav" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host ("   {0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)) }
 }
 
+# back to generative mode: a remix track left selected by an earlier session would otherwise play through the story
+Adb shell am startservice -n $svc -a io.drivesymphony.action.REMIX_DEMO --ez on false | Out-Null
+Start-Sleep -Seconds 2
 # ---- segment 1: the demo story (106 s) + journey card
 Record-Segment 'story' 125 {
     $timing['story_demo'] = Now
