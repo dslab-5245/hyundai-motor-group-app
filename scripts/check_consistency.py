@@ -69,7 +69,7 @@ check("schema genre enum == engine Genre", schema_genres == set(engine_genres), 
 test_dir = os.path.join(ROOT, "engine", "src", "test", "kotlin", "io", "drivesymphony", "engine")
 n_tests = sum(io.open(os.path.join(test_dir, f), encoding="utf-8").read().count("@Test") for f in os.listdir(test_dir) if f.endswith(".kt"))
 readme = read("README.md")
-rm = re.search(r"엔진 단위 테스트 \((\d+)개\)", readme)
+rm = re.search(r"엔진 단위 테스트 \((\d+)개\)", readme) or re.search(r"단위 테스트 (\d+)개", readme)
 check("README test count == @Test count", rm is not None and int(rm.group(1)) == n_tests, f"README {rm.group(1) if rm else '?'} vs {n_tests}")
 
 # 6. permissions: exactly the documented set

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>드라이브 심포니 개인정보처리방침</title>
+<meta name="description" content="Drive Symphony (io.drivesymphony.app) privacy policy — the app has no network permission and stores only local journey summaries.">
+<style>
+  :root { --bg:#ffffff; --fg:#1a1a1a; --muted:#595959; --line:#dcdcdc; --accent:#2b3a8f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121417; --fg:#e8e8e8; --muted:#a8a8a8; --line:#333a44; --accent:#9fb0ff; } }
+  html, body { margin:0; background:var(--bg); color:var(--fg); font: 16px/1.6 -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 28px 0 8px; color: var(--accent); }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 20px; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; text-align: left; }
+  th { background: rgba(127,127,127,.12); }
+  code { font-size: .9em; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 32px 0; }
+  ul { padding-left: 1.2em; }
+</style>
+</head>
+<body>
+<main>
+<h1>드라이브 심포니 개인정보처리방침 / Drive Symphony Privacy Policy</h1>
+<p class="meta">최종 수정일: 2026-10-31 · 적용 앱: 드라이브 심포니 (패키지 <code>io.drivesymphony.app</code>) · 문의: 이 저장소의 Issues 탭</p>
+
+<h2>1. 요약</h2>
+<ul>
+  <li>드라이브 심포니는 <strong>개인정보를 수집·전송하지 않습니다.</strong> 앱에는 네트워크(INTERNET) 권한 자체가 없습니다.</li>
+  <li>차량 신호(조향각·브레이크·방향지시등·와이퍼·기어·주행 모드·크루즈·좌석 착좌/벨트)와 내비게이션 정보(현재 도로명·제한속도·다음 회전까지 거리·주의 구간)는 <strong>차량 안에서 실시간으로 음악 파라미터로 바꾸는 데만</strong> 쓰이고, 원본 신호는 저장되지 않습니다.</li>
+  <li>저장되는 것은 "여정의 곡" 요약뿐입니다: 주행 시간, 평균 흐름 점수, 가장 길게 부드러웠던 구간, 마디 수, 감점 이벤트 개수(종류·시각 없이 개수만), 곡 제목(도로명 + 시간대 + 키·장르), 선택한 장르 — 그리고 아래 표의 사용자 설정. 최근 10회까지 <strong>차량 내 앱 전용 저장소</strong>에만 남고, 앱 데이터를 삭제하거나 앱을 삭제하면 함께 지워집니다.</li>
+  <li>이미지 카드 공유는 사용자가 "공유" 버튼을 눌렀을 때만, 사용자가 고른 앱으로, Android 공유 시트를 통해 이루어집니다. 앱이 스스로 외부에 보내는 데이터는 없습니다.</li>
+</ul>
+
+<h2>2. 처리하는 정보와 목적</h2>
+<table>
+  <tr><th>정보</th><th>출처</th><th>목적</th><th>보관</th></tr>
+  <tr><td>조향각, 브레이크 페달, 방향지시등, 와이퍼, 기어, 주행 모드, 크루즈, 운전석·뒷좌석 착좌, 안전벨트</td><td>Pleos Vehicle SDK (읽기 전용)</td><td>주행 흐름 점수 계산, 음악 밀도·톤·음량 조절, 분위기 레이어(비·깜빡이)</td><td>메모리에서 즉시 처리, 저장 안 함</td></tr>
+  <tr><td>현재 도로명, 제한속도, 회전까지 거리, 주의 구간, 위치 기반 속도(1 Hz 폴링한 내비 위치의 변화로 계산)</td><td>Pleos NaviHelper SDK</td><td>과속 여부·급회전 예고 반영, 곡 제목의 도로명, "이 길의 테마" 시드</td><td>도로명만 여정 요약에 포함</td></tr>
+  <tr><td>여정 요약(시간·점수·제목·장르)</td><td>앱이 계산</td><td>"여정의 곡 기록" 화면, 공유 카드</td><td>차량 내 앱 전용 저장소, 최근 10회</td></tr>
+  <tr><td>사용자 설정(장르, 모드, 피드백 강도, 자동 연주 여부, 변주 모드에서 마지막으로 고른 음원 파일의 위치)</td><td>사용자 입력</td><td>앱 동작</td><td>차량 내 앱 전용 저장소</td></tr>
+  <tr><td>로컬 음원 파일(변주 모드)</td><td>사용자가 문서 선택기에서 고른 파일(저장소 전체 권한 없이 그 파일에만 접근)</td><td>선택한 곡을 재생하면서 실시간 변주</td><td>파일을 복사·저장하지 않음, 제목만 화면 표시</td></tr>
+  <tr><td>음성 명령(Gleo)</td><td>차량 음성 비서가 전달하는 함수명·파라미터(장르 등)</td><td>재생 시작·장르 변경·점수 안내·일시정지</td><td>저장 안 함</td></tr>
+</table>
+<p>위치 좌표 자체는 저장하지 않습니다. 앱은 마이크·카메라·연락처·계정 정보에 접근하지 않습니다.</p>
+
+<h2>3. 제3자 제공·국외 이전</h2>
+<p>없습니다. 앱은 서버가 없고 네트워크 권한이 없습니다. 분석(analytics)·광고 SDK를 포함하지 않습니다.</p>
+
+<h2>4. 이용자의 권리</h2>
+<ul>
+  <li>여정 기록 삭제: 차량 설정 → 앱 → 드라이브 심포니 → 저장공간 → 데이터 삭제(또는 앱 삭제).</li>
+  <li>공유한 이미지 카드는 사용자가 선택한 앱(메신저 등)의 정책을 따릅니다.</li>
+  <li>문의: 이 저장소의 Issues 탭</li>
+</ul>
+
+<h2>5. 아동</h2>
+<p>이 앱은 운전자를 위한 앱이며 아동을 대상으로 하지 않습니다.</p>
+
+<h2>6. 변경</h2>
+<p>방침이 바뀌면 이 페이지의 최종 수정일을 갱신합니다.</p>
+
+<hr>
+
+<h2>English summary</h2>
+<p>Drive Symphony (package <code>io.drivesymphony.app</code>) <strong>does not collect or transmit personal data</strong>. The app has no INTERNET permission. Vehicle signals (steering, brake, turn signal, wiper, gear, drive mode, cruise, seat occupancy / belt) and navigation data (road name, speed limit, distance to next turn, caution ahead, position-derived speed) are used only to shape the music in real time and are not stored. The only persisted data are a "journey song" summary (duration, average flow score, longest smooth stretch, bar count, number of penalty events, generated title with road name, chosen genre), kept in the app's private storage for the last 10 trips, and your settings (genre, mode, feedback level, auto-start, the location reference of the last chosen local track); both are removed when you clear app data or uninstall. Sharing an image card happens only when you tap Share, through the Android share sheet, to the app you choose. Local audio files chosen for "variation" mode are played from your device and never copied. Gleo voice commands reach the app only as a function name and parameters and are not stored. No third-party, analytics or advertising SDKs.</p>
+</main>
+</body>
+</html>

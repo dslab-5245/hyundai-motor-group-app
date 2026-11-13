@@ -12,10 +12,10 @@
 | 카테고리 | 음악·오디오 (주행 중 사용 가능 카테고리, `pleos.app.category = MUSIC_AUDIO`) |
 | 최소 / 타깃 SDK | 28 / 34 (Pleos Connect 에뮬레이터 v2.1.0, API 34) |
 | 네트워크 | 사용하지 않음 (`INTERNET` 권한 없음) |
-| 개인정보처리방침 | `docs/privacy-policy.md` → ⟦공개 URL⟧ |
+| 개인정보처리방침 | `docs/privacy-policy.md`(이 저장소에 공개) |
 | 아이콘 | `store/icon-512.png` (512×512, 둥근 변형 `icon-512-rounded.png`) |
 | 스크린샷 | 2560×1380 5장 — 글랜스(주행) / 작곡실(정차) / 여정의 곡 카드 / 음원 선택 / 장르·강도 설정 (`python -I scripts/make_store_assets.py --screens <폴더>`로 규격 변환) |
-| APK | `apk/⟦팀명⟧_DriveSymphony_release.apk` (디버그 키 서명 release) |
+| APK | `apk/DriveSymphony_DriveSymphony_release.apk` (디버그 키 서명 release) |
 
 ## 2. 한 줄 소개
 
